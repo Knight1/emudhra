@@ -28,6 +28,7 @@ import (
 	"io"
 	"math/big"
 	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -55,6 +56,7 @@ type LeafConfig struct {
 	DNSNames              []string `json:"dns_names,omitempty"`
 	IPAddresses           []string `json:"ip_addresses,omitempty"`
 	EmailAddresses        []string `json:"email_addresses,omitempty"`
+	URIs                  []string `json:"uris,omitempty"`
 	Organization          []string `json:"organization,omitempty"`
 	OrganizationalUnit    []string `json:"organizational_unit,omitempty"`
 	Country               []string `json:"country,omitempty"`
@@ -81,9 +83,42 @@ type issued struct {
 	leafKey crypto.Signer
 }
 
+type runOptions struct {
+	show  bool      // print only the certificate; no files, no checks
+	chain bool      // also print the complete chain as PEM
+	json  bool      // print the chain as an RFC 6962 add-chain request instead of PEM
+	diag  io.Writer // receives details and checks when json is set; nil discards them
+}
+
+// addChainRequest is the body of an RFC 6962 POST /ct/v1/add-chain request.
+// []byte fields marshal as standard base64, i.e. base64-encoded DER.
+type addChainRequest struct {
+	Chain [][]byte `json:"chain"`
+}
+
+// sanFlag collects -san values. Each value may be comma-separated and
+// optionally prefixed with DNS:, IP:, email: or URI:; otherwise the type is
+// inferred.
+type sanFlag []string
+
+func (s *sanFlag) String() string { return strings.Join(*s, ",") }
+
+func (s *sanFlag) Set(v string) error {
+	for _, part := range strings.Split(v, ",") {
+		if part = strings.TrimSpace(part); part != "" {
+			*s = append(*s, part)
+		}
+	}
+	return nil
+}
+
 func main() {
+	var sans sanFlag
 	configPath := flag.String("config", "config.json", "path to JSON config")
-	show := flag.Bool("show", false, "only generate and print the certificate; write no files and skip checks")
+	show := flag.Bool("show", false, "only generate and print the certificate PEM; write no files and skip checks")
+	chain := flag.Bool("chain", false, "also print the complete chain (leaf, CA, root if configured) as PEM")
+	jsonOut := flag.Bool("json", false, "print the complete chain as a CT add-chain JSON request on stdout; details and checks go to stderr")
+	flag.Var(&sans, "san", "subject alternative name, repeatable or comma-separated (e.g. -san a.example,IP:192.0.2.1); replaces SANs from the config")
 	flag.Parse()
 
 	cfg, err := loadConfig(*configPath)
@@ -91,7 +126,14 @@ func main() {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}
-	if err := run(cfg, *show, os.Stdout); err != nil {
+	if len(sans) > 0 {
+		if err := applySANs(&cfg.Leaf, sans); err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			os.Exit(1)
+		}
+	}
+	opts := runOptions{show: *show, chain: *chain, json: *jsonOut, diag: os.Stderr}
+	if err := run(cfg, opts, os.Stdout); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}
@@ -119,12 +161,48 @@ func loadConfig(path string) (*Config, error) {
 	return cfg, nil
 }
 
-func run(cfg *Config, showOnly bool, w io.Writer) error {
+// applySANs replaces the SANs in lc with the given CLI values.
+func applySANs(lc *LeafConfig, sans []string) error {
+	lc.DNSNames, lc.IPAddresses, lc.EmailAddresses, lc.URIs = nil, nil, nil, nil
+	for _, san := range sans {
+		kind, value, ok := strings.Cut(san, ":")
+		if !ok || net.ParseIP(san) != nil || strings.Contains(san, "://") && !strings.EqualFold(kind, "URI") {
+			kind, value = "", san
+		}
+		switch strings.ToUpper(kind) {
+		case "DNS":
+			lc.DNSNames = append(lc.DNSNames, value)
+		case "IP":
+			lc.IPAddresses = append(lc.IPAddresses, value)
+		case "EMAIL":
+			lc.EmailAddresses = append(lc.EmailAddresses, value)
+		case "URI":
+			lc.URIs = append(lc.URIs, value)
+		case "":
+			switch {
+			case net.ParseIP(value) != nil:
+				lc.IPAddresses = append(lc.IPAddresses, value)
+			case strings.Contains(value, "://"):
+				lc.URIs = append(lc.URIs, value)
+			case strings.Contains(value, "@"):
+				lc.EmailAddresses = append(lc.EmailAddresses, value)
+			default:
+				lc.DNSNames = append(lc.DNSNames, value)
+			}
+		default:
+			return fmt.Errorf("unknown SAN type %q in %q (use DNS:, IP:, email: or URI:)", kind, san)
+		}
+	}
+	return nil
+}
+
+func run(cfg *Config, opts runOptions, w io.Writer) error {
 	if cfg.CACert == "" {
 		return errors.New("ca_cert is required")
 	}
-	if cfg.Leaf.CommonName == "" && len(cfg.Leaf.DNSNames) == 0 {
-		return errors.New("leaf.common_name or leaf.dns_names is required")
+	lc := &cfg.Leaf
+	if lc.CommonName == "" && len(lc.DNSNames)+len(lc.IPAddresses)+len(lc.EmailAddresses)+len(lc.URIs) == 0 {
+		return errors.New("leaf.common_name or at least one SAN is required")
 	}
 
 	res, err := issue(cfg)
@@ -134,10 +212,15 @@ func run(cfg *Config, showOnly bool, w io.Writer) error {
 
 	leafPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: res.leaf.Raw})
 
-	if showOnly {
-		describe(w, "Leaf certificate", res.leaf)
-		fmt.Fprintln(w)
-		w.Write(leafPEM)
+	if opts.show {
+		switch {
+		case opts.json:
+			return writeAddChain(w, res)
+		case opts.chain:
+			writeChain(w, res)
+		default:
+			w.Write(leafPEM)
+		}
 		return nil
 	}
 
@@ -145,18 +228,59 @@ func run(cfg *Config, showOnly bool, w io.Writer) error {
 		return err
 	}
 
-	describe(w, "Issuing CA", res.ca)
-	if res.scalar != 0 {
-		fmt.Fprintf(w, "  Recovered key:  d = %d\n", res.scalar)
+	// With -json, stdout stays pure JSON so it can be piped to a CT log.
+	text := w
+	if opts.json {
+		text = opts.diag
+		if text == nil {
+			text = io.Discard
+		}
 	}
-	fmt.Fprintln(w)
-	describe(w, "Leaf certificate", res.leaf)
-	fmt.Fprintln(w)
 
-	if !check(w, cfg, res) {
+	describe(text, "Issuing CA", res.ca)
+	if res.scalar != 0 {
+		fmt.Fprintf(text, "  Recovered key:  d = %d\n", res.scalar)
+	}
+	fmt.Fprintln(text)
+	describe(text, "Leaf certificate", res.leaf)
+	fmt.Fprintln(text)
+
+	if !check(text, cfg, res) {
 		return errors.New("one or more checks failed")
 	}
+	if opts.json {
+		return writeAddChain(w, res)
+	}
+	if opts.chain {
+		fmt.Fprintln(w)
+		writeChain(w, res)
+	}
 	return nil
+}
+
+// chainCerts returns leaf, issuing CA and (if configured) root.
+func chainCerts(res *issued) []*x509.Certificate {
+	certs := []*x509.Certificate{res.leaf, res.ca}
+	if res.root != nil {
+		certs = append(certs, res.root)
+	}
+	return certs
+}
+
+// writeChain prints the complete chain as PEM.
+func writeChain(w io.Writer, res *issued) {
+	for _, c := range chainCerts(res) {
+		pem.Encode(w, &pem.Block{Type: "CERTIFICATE", Bytes: c.Raw})
+	}
+}
+
+// writeAddChain prints the complete chain as an RFC 6962 add-chain request.
+func writeAddChain(w io.Writer, res *issued) error {
+	var req addChainRequest
+	for _, c := range chainCerts(res) {
+		req.Chain = append(req.Chain, c.Raw)
+	}
+	return json.NewEncoder(w).Encode(req)
 }
 
 func issue(cfg *Config) (*issued, error) {
@@ -247,7 +371,12 @@ func leafTemplate(lc *LeafConfig, key crypto.Signer) (*x509.Certificate, error) 
 
 	cn := lc.CommonName
 	if cn == "" {
-		cn = lc.DNSNames[0]
+		for _, names := range [][]string{lc.DNSNames, lc.IPAddresses, lc.EmailAddresses} {
+			if len(names) > 0 {
+				cn = names[0]
+				break
+			}
+		}
 	}
 	now := time.Now()
 	tmpl := &x509.Certificate{
@@ -278,6 +407,13 @@ func leafTemplate(lc *LeafConfig, key crypto.Signer) (*x509.Certificate, error) 
 			return nil, fmt.Errorf("invalid ip address %q", s)
 		}
 		tmpl.IPAddresses = append(tmpl.IPAddresses, ip)
+	}
+	for _, s := range lc.URIs {
+		u, err := url.Parse(s)
+		if err != nil || u.Scheme == "" {
+			return nil, fmt.Errorf("invalid uri %q", s)
+		}
+		tmpl.URIs = append(tmpl.URIs, u)
 	}
 
 	ekus := lc.ExtKeyUsage
@@ -439,6 +575,9 @@ func subjectAltNames(c *x509.Certificate) []string {
 	}
 	for _, e := range c.EmailAddresses {
 		sans = append(sans, "email:"+e)
+	}
+	for _, u := range c.URIs {
+		sans = append(sans, "URI:"+u.String())
 	}
 	return sans
 }
