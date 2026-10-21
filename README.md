@@ -103,6 +103,8 @@ go test ./...
 
 ## References
 
+- [CERTIFICATES.md](CERTIFICATES.md): all 16 affected certificates
+
 - https://github.com/Fluepke/emudrahahahahaha
 - https://github.com/galadran/we-have-a-problem.com
 - https://emudhra.we-have-a-problem.com/
