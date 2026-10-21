@@ -9,6 +9,57 @@ All affected intermediates are revoked (caCompromise).
 The tool recovers the CA key from the CA certificate, issues a leaf
 certificate (OU `PoC`, max. 7 days validity) and verifies the result.
 
+```
+➜  emudhra git:(main) ✗ ./emudhra-poc -json
+Issuing CA
+  Subject:        CN=EM DV TLS CA - G3B,O=eMudhra BV,C=NL
+  Issuer:         CN=AAA Certificate Services,O=Comodo CA Limited,L=Salford,ST=Greater Manchester,C=GB
+  Serial:         a024fdf4ba665c785ce4a020483858b7
+  Not before:     2025-05-14T00:00:00Z
+  Not after:      2028-12-31T23:59:59Z
+  Public key:     ECDSA P-384
+  Signature alg:  SHA256-RSA
+  CA:             true
+  Key usage:      keyCertSign, cRLSign
+  Ext key usage:  serverAuth, clientAuth
+  Policy:         2.23.140.1.2.1
+  Policy:         1.3.6.1.4.1.50977.1.0.1
+  Policy:         1.3.6.1.4.1.50977.1.2.100
+  Subject key ID: e21e2fe71c19390e554b62c120245735248a2514
+  Auth key ID:    a0110a233e96f107ece2af29ef82a57fd030a4b4
+  CRL:            http://crl.comodoca.com/AAACertificateServices.crl
+  OCSP:           http://ocsp.comodoca.com
+  SHA-256:        45A883F349AEDFD5F3A649B5498FFB121712BA8B448F3F2A91DBC5A766FCDDBE
+  Recovered key:  d = 156
+
+Leaf certificate
+  Subject:        CN=we-are-lost.com,OU=PoC,O=eMudhra key lol
+  Issuer:         CN=EM DV TLS CA - G3B,O=eMudhra BV,C=NL
+  Serial:         78000bc1120525dbb77c0521d48d01bb
+  Not before:     2026-10-20T23:42:34Z
+  Not after:      2026-10-21T23:47:34Z
+  Public key:     ECDSA P-256
+  Signature alg:  ECDSA-SHA384
+  CA:             false
+  Key usage:      digitalSignature
+  Ext key usage:  serverAuth
+  SANs:           DNS:we-are-lost.com
+  Auth key ID:    e21e2fe71c19390e554b62c120245735248a2514
+  SHA-256:        FF9D066B8837C7BD7D4FA4E1EE4009DDEC59FD4FF60FA2DD3E79373C49598683
+
+Checks
+  [ OK ] leaf signature verifies under CA public key
+  [ OK ] leaf certificate matches generated leaf key
+  [ OK ] leaf authority key ID matches CA subject key ID
+  [ OK ] chain verification against CA certificate (intermediate used as trust anchor, offline)
+         chain: we-are-lost.com -> EM DV TLS CA - G3B
+
+Output
+  cert:  out/leaf.pem
+  key:   out/leaf.key
+  chain: out/chain.pem
+```
+
 ## Usage
 
 ```
