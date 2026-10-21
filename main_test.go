@@ -210,8 +210,8 @@ func TestJSONAddChain(t *testing.T) {
 		dir := t.TempDir()
 		cfg := testConfig(dir, writeWeakCA(t, dir, 4))
 
-		var out, diag bytes.Buffer
-		if err := run(cfg, runOptions{show: show, json: true, diag: &diag}, &out); err != nil {
+		var out bytes.Buffer
+		if err := run(cfg, runOptions{show: show, json: true}, &out); err != nil {
 			t.Fatalf("show=%t: %v", show, err)
 		}
 		var req addChainRequest
@@ -237,8 +237,8 @@ func TestJSONAddChain(t *testing.T) {
 		if err := leaf.CheckSignatureFrom(ca); err != nil {
 			t.Errorf("show=%t: chain order: %v", show, err)
 		}
-		if gotChecks := strings.Contains(diag.String(), "[ OK ] chain verification"); gotChecks == show {
-			t.Errorf("show=%t: checks on diag = %t", show, gotChecks)
+		if _, err := os.Stat(cfg.Output.Cert); os.IsNotExist(err) != show {
+			t.Errorf("show=%t: output file written = %t", show, err == nil)
 		}
 	}
 }

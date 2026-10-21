@@ -1,0 +1,11 @@
+* text=auto eol=lf
+
+*.go   text eol=lf
+*.mod  text eol=lf
+*.sum  text eol=lf
+*.json text eol=lf
+*.md   text eol=lf
+*.pem  text eol=lf
+*.key  text eol=lf
+
+*.zip  binary

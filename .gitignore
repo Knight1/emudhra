@@ -1,0 +1,9 @@
+# Build output
+/emudhra-poc
+/emudhra-poc.exe
+
+# Generated certificates and keys
+/out/
+
+# Local config
+/config.json

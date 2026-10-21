@@ -84,10 +84,9 @@ type issued struct {
 }
 
 type runOptions struct {
-	show  bool      // print only the certificate; no files, no checks
-	chain bool      // also print the complete chain as PEM
-	json  bool      // print the chain as an RFC 6962 add-chain request instead of PEM
-	diag  io.Writer // receives details and checks when json is set; nil discards them
+	show  bool // print only the certificate; no files, no checks
+	chain bool // also print the complete chain as PEM
+	json  bool // print only the chain as an RFC 6962 add-chain request
 }
 
 // addChainRequest is the body of an RFC 6962 POST /ct/v1/add-chain request.
@@ -117,7 +116,7 @@ func main() {
 	configPath := flag.String("config", "config.json", "path to JSON config")
 	show := flag.Bool("show", false, "only generate and print the certificate PEM; write no files and skip checks")
 	chain := flag.Bool("chain", false, "also print the complete chain (leaf, CA, root if configured) as PEM")
-	jsonOut := flag.Bool("json", false, "print the complete chain as a CT add-chain JSON request on stdout; details and checks go to stderr")
+	jsonOut := flag.Bool("json", false, "print only the complete chain as a CT add-chain JSON request; checks still run silently")
 	flag.Var(&sans, "san", "subject alternative name, repeatable or comma-separated (e.g. -san a.example,IP:192.0.2.1); replaces SANs from the config")
 	flag.Parse()
 
@@ -132,7 +131,7 @@ func main() {
 			os.Exit(1)
 		}
 	}
-	opts := runOptions{show: *show, chain: *chain, json: *jsonOut, diag: os.Stderr}
+	opts := runOptions{show: *show, chain: *chain, json: *jsonOut}
 	if err := run(cfg, opts, os.Stdout); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
@@ -228,13 +227,10 @@ func run(cfg *Config, opts runOptions, w io.Writer) error {
 		return err
 	}
 
-	// With -json, stdout stays pure JSON so it can be piped to a CT log.
+	// With -json, only the JSON is printed so it can be piped to a CT log.
 	text := w
 	if opts.json {
-		text = opts.diag
-		if text == nil {
-			text = io.Discard
-		}
+		text = io.Discard
 	}
 
 	describe(text, "Issuing CA", res.ca)
@@ -245,8 +241,8 @@ func run(cfg *Config, opts runOptions, w io.Writer) error {
 	describe(text, "Leaf certificate", res.leaf)
 	fmt.Fprintln(text)
 
-	if !check(text, cfg, res) {
-		return errors.New("one or more checks failed")
+	if err := check(text, cfg, res); err != nil {
+		return err
 	}
 	if opts.json {
 		return writeAddChain(w, res)
@@ -459,11 +455,13 @@ func generateKey(keyType string) (crypto.Signer, error) {
 	return nil, fmt.Errorf("unknown key_type %q", keyType)
 }
 
-func check(w io.Writer, cfg *Config, res *issued) bool {
-	ok := true
+// check prints the result of each check to w and returns an error naming
+// every failed check, so failures are visible even when w discards output.
+func check(w io.Writer, cfg *Config, res *issued) error {
+	var failed []string
 	report := func(name string, err error) {
 		if err != nil {
-			ok = false
+			failed = append(failed, fmt.Sprintf("%s: %v", name, err))
 			fmt.Fprintf(w, "  [FAIL] %s: %v\n", name, err)
 			return
 		}
@@ -519,7 +517,10 @@ func check(w io.Writer, cfg *Config, res *issued) bool {
 		fmt.Fprintf(w, "  chain: %s\n", cfg.Output.Chain)
 	}
 	fmt.Fprintln(w, "\nNote: the issuing CA was revoked with reason caCompromise; revocation-checking clients should reject this chain.")
-	return ok
+	if len(failed) > 0 {
+		return fmt.Errorf("checks failed: %s", strings.Join(failed, "; "))
+	}
+	return nil
 }
 
 func describe(w io.Writer, title string, c *x509.Certificate) {
