@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      # Test the Go versions of the matrix, not the toolchain go.mod asks for
+      GOTOOLCHAIN: local
+    strategy:
+      matrix:
+        go-version: ['oldstable', 'stable']
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      # The dependencies are vendored, so there's nothing to download or cache for them
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Run go fmt
+        run: |
+          if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
+            echo "Code formatting issues found:"
+            gofmt -s -d .
+            exit 1
+          fi
+
+      - name: Build
+        run: go build -mod=vendor -v .
+
+      - name: Run tests
+        run: go test -v -race -coverprofile=coverage.out ./...
