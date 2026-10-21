@@ -10,7 +10,7 @@ The tool recovers the CA key from the CA certificate, issues a leaf
 certificate (OU `PoC`, max. 7 days validity) and verifies the result.
 
 ```
-➜  emudhra git:(main) ✗ ./emudhra-poc -json
+$ ./emudhra-poc
 Issuing CA
   Subject:        CN=EM DV TLS CA - G3B,O=eMudhra BV,C=NL
   Issuer:         CN=AAA Certificate Services,O=Comodo CA Limited,L=Salford,ST=Greater Manchester,C=GB
@@ -53,17 +53,24 @@ Checks
   [ OK ] leaf authority key ID matches CA subject key ID
   [ OK ] chain verification against CA certificate (intermediate used as trust anchor, offline)
          chain: we-are-lost.com -> EM DV TLS CA - G3B
+  [INFO] Go x509.Verify rejects the chain: x509: no valid chains built
 
 Output
   cert:  out/leaf.pem
   key:   out/leaf.key
   chain: out/chain.pem
+
+Note: the issuing CA was revoked with reason caCompromise; revocation-checking clients should reject this chain.
 ```
+
+The `[INFO]` line reflects Go 1.26.10 / 1.27.3 and later, which distrust the
+compromised eMudhra keys in `x509.Verify`; the tool verifies the chain itself
+instead. Older Go versions print `[INFO] Go x509.Verify accepts the chain`.
 
 ## Usage
 
 ```
-go build -o emudhra-poc .
+go build -o emudhra-poc ./src
 cp config.example.json config.json   # set ca_cert to one of the CA PEMs
 ./emudhra-poc                        # issue, write files, print details and checks
 ```
@@ -82,6 +89,15 @@ SAN types are inferred or set with a prefix: `DNS:`, `IP:`, `email:`, `URI:`.
 ./emudhra-poc -show -san poc.example,IP:192.0.2.1
 ./emudhra-poc -show -json -san poc.example \
   | curl -sS -H 'Content-Type: application/json' --data-binary @- https://<log>/ct/v1/add-chain
+```
+
+## Layout
+
+All Go code lives in `src/` (package `main`); `go.mod`, the example config
+and the CA certificates in `keys/` stay in the repository root.
+
+```
+go test ./...
 ```
 
 ## References

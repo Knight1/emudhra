@@ -41,7 +41,7 @@ jobs:
           fi
 
       - name: Build
-        run: go build -mod=vendor -v .
+        run: go build -mod=vendor -v -o emudhra-poc ./src
 
       - name: Run tests
         run: go test -v -race -coverprofile=coverage.out ./...
