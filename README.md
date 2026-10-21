@@ -35,9 +35,9 @@ Issuing CA
 Leaf certificate
   Subject:        CN=we-are-lost.com,OU=PoC,O=eMudhra key lol
   Issuer:         CN=EM DV TLS CA - G3B,O=eMudhra BV,C=NL
-  Serial:         78000bc1120525dbb77c0521d48d01bb
-  Not before:     2026-10-20T23:42:34Z
-  Not after:      2026-10-21T23:47:34Z
+  Serial:         0b43fde43400886738a0db939171bb9a
+  Not before:     2026-10-21T00:20:19Z
+  Not after:      2026-10-22T00:25:19Z
   Public key:     ECDSA P-256
   Signature alg:  ECDSA-SHA384
   CA:             false
@@ -45,7 +45,7 @@ Leaf certificate
   Ext key usage:  serverAuth
   SANs:           DNS:we-are-lost.com
   Auth key ID:    e21e2fe71c19390e554b62c120245735248a2514
-  SHA-256:        FF9D066B8837C7BD7D4FA4E1EE4009DDEC59FD4FF60FA2DD3E79373C49598683
+  SHA-256:        E14B628A75FCAEFF583CDEC1B61D9D075CDBDCDD5449E1AAAF571A18750D2170
 
 Checks
   [ OK ] leaf signature verifies under CA public key
@@ -53,7 +53,7 @@ Checks
   [ OK ] leaf authority key ID matches CA subject key ID
   [ OK ] chain verification against CA certificate (intermediate used as trust anchor, offline)
          chain: we-are-lost.com -> EM DV TLS CA - G3B
-  [INFO] Go x509.Verify rejects the chain: x509: no valid chains built
+  [INFO] Go x509.Verify accepts the chain
 
 Output
   cert:  out/leaf.pem
@@ -63,9 +63,10 @@ Output
 Note: the issuing CA was revoked with reason caCompromise; revocation-checking clients should reject this chain.
 ```
 
-The `[INFO]` line reflects Go 1.26.10 / 1.27.3 and later, which distrust the
-compromised eMudhra keys in `x509.Verify`; the tool verifies the chain itself
-instead. Older Go versions print `[INFO] Go x509.Verify accepts the chain`.
+The `[INFO]` line is informational: Go 1.26.10 / 1.27.3 and later distrust the
+compromised eMudhra keys in `x509.Verify` and print `[INFO] Go x509.Verify
+rejects the chain: x509: no valid chains built`. The tool verifies the chain
+itself, so the checks pass with any Go version.
 
 ## Usage
 
