@@ -9,3 +9,4 @@
 *.key  text eol=lf
 
 *.zip  binary
+*.crl  binary

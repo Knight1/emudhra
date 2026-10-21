@@ -83,8 +83,24 @@ cp config.example.json config.json   # set ca_cert to one of the CA PEMs
 | `-show`       | Print only the certificate PEM; no files, no checks             |
 | `-chain`      | Also print the complete chain (leaf, CA, root) as PEM           |
 | `-json`       | Print only the chain as a CT `add-chain` JSON request           |
+| `-revocation` | Also check the issuing CA against the cached CRL and OneCRL     |
+| `-update-revocation` | Refresh the revocation cache, then exit                  |
+| `-keys`, `-roots`, `-revocation-dir` | Directories (default `keys`, `roots`, `revocation`) |
 
 SAN types are inferred or set with a prefix: `DNS:`, `IP:`, `email:`, `URI:`.
+
+## Revocation
+
+`revocation/` caches the CRLs of the issuing roots (taken from the CRL
+distribution points, matching the "Full CRL Issued By This CA" disclosed in
+CCADB) and the OneCRL records concerning the certificates in `keys/`. CRLs are
+only stored if their signature verifies under a certificate in `roots/`. A
+daily workflow refreshes the cache; `-revocation` works offline against it.
+
+```
+./emudhra-poc -update-revocation
+./emudhra-poc -revocation
+```
 
 ```
 ./emudhra-poc -show -san poc.example,IP:192.0.2.1

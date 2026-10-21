@@ -105,7 +105,7 @@ func TestCheckReportsFailures(t *testing.T) {
 	}
 
 	var out bytes.Buffer
-	err = check(&out, cfg, res)
+	err = check(&out, res)
 	if err == nil {
 		t.Fatal("expected failed checks")
 	}

@@ -1,0 +1,40 @@
+name: Update revocation cache
+
+# Refreshes the cached root CRLs and the filtered OneCRL in revocation/.
+# Disable this workflow once the emSign G3 roots are distrusted everywhere.
+on:
+  schedule:
+    - cron: '23 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    env:
+      GOTOOLCHAIN: local
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: stable
+
+      - name: Update cache
+        run: go run -mod=vendor ./src -update-revocation
+
+      - name: Commit changes
+        run: |
+          git add revocation
+          if git diff --cached --quiet; then
+            echo "Revocation cache unchanged"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Update revocation cache"
+          git push

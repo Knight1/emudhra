@@ -13,7 +13,7 @@ import (
 
 // check prints the result of each check to w and returns an error naming
 // every failed check, so failures are visible even when w discards output.
-func check(w io.Writer, cfg *Config, res *issued) error {
+func check(w io.Writer, res *issued) error {
 	var failed []string
 	report := func(name string, err error) {
 		if err != nil {
@@ -59,13 +59,6 @@ func check(w io.Writer, cfg *Config, res *issued) error {
 		fmt.Fprintln(w, "  [INFO] Go x509.Verify accepts the chain")
 	}
 
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Output")
-	fmt.Fprintf(w, "  cert:  %s\n  key:   %s\n", cfg.Output.Cert, cfg.Output.Key)
-	if cfg.Output.Chain != "" {
-		fmt.Fprintf(w, "  chain: %s\n", cfg.Output.Chain)
-	}
-	fmt.Fprintln(w, "\nNote: the issuing CA was revoked with reason caCompromise; revocation-checking clients should reject this chain.")
 	if len(failed) > 0 {
 		return fmt.Errorf("checks failed: %s", strings.Join(failed, "; "))
 	}

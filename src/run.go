@@ -8,12 +8,17 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 type runOptions struct {
 	show  bool // print only the certificate; no files, no checks
 	chain bool // also print the complete chain as PEM
 	json  bool // print only the chain as an RFC 6962 add-chain request
+
+	revocation    bool   // check the issuing CA against the revocation cache
+	rootsDir      string // roots that sign the cached CRLs
+	revocationDir string // revocation cache written by -update-revocation
 }
 
 func run(cfg *Config, opts runOptions, w io.Writer) error {
@@ -62,7 +67,13 @@ func run(cfg *Config, opts runOptions, w io.Writer) error {
 	describe(text, "Leaf certificate", res.leaf)
 	fmt.Fprintln(text)
 
-	if err := check(text, cfg, res); err != nil {
+	err = check(text, res)
+	if err == nil && opts.revocation {
+		fmt.Fprintln(text)
+		err = revocationReport(text, res.ca, opts)
+	}
+	printOutputs(text, cfg)
+	if err != nil {
 		return err
 	}
 	if opts.json {
@@ -73,6 +84,28 @@ func run(cfg *Config, opts runOptions, w io.Writer) error {
 		writeChain(w, res)
 	}
 	return nil
+}
+
+// revocationReport checks ca against the cached CRLs and OneCRL.
+func revocationReport(w io.Writer, ca *x509.Certificate, opts runOptions) error {
+	roots, err := readCertDir(opts.rootsDir)
+	if err == nil {
+		err = checkRevocation(w, ca, roots, opts.revocationDir, time.Now())
+	}
+	if err != nil {
+		return fmt.Errorf("revocation: %w", err)
+	}
+	return nil
+}
+
+func printOutputs(w io.Writer, cfg *Config) {
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Output")
+	fmt.Fprintf(w, "  cert:  %s\n  key:   %s\n", cfg.Output.Cert, cfg.Output.Key)
+	if cfg.Output.Chain != "" {
+		fmt.Fprintf(w, "  chain: %s\n", cfg.Output.Chain)
+	}
+	fmt.Fprintln(w, "\nNote: the issuing CA was revoked with reason caCompromise; revocation-checking clients should reject this chain.")
 }
 
 func writeOutputs(cfg *Config, res *issued, leafPEM []byte) error {
