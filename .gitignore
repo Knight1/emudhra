@@ -7,3 +7,6 @@
 
 # Local config
 /config.json
+
+# Test coverage profile
+/coverage.out

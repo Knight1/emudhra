@@ -2,6 +2,9 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -32,5 +35,57 @@ func TestSANFlagSplitsCommas(t *testing.T) {
 	s.Set("b.example")
 	if got := s.String(); got != "a.example,IP:192.0.2.1,b.example" {
 		t.Errorf("got %q", got)
+	}
+}
+
+func TestApplySANsEmailPrefix(t *testing.T) {
+	var lc LeafConfig
+	if err := applySANs(&lc, []string{"email:ops@a.example"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(lc.EmailAddresses) != 1 || lc.EmailAddresses[0] != "ops@a.example" {
+		t.Errorf("got %+v", lc)
+	}
+}
+
+func TestLoadConfig(t *testing.T) {
+	dir := t.TempDir()
+	abs := filepath.Join(dir, "root.pem")
+	path := filepath.Join(dir, "config.json")
+	data := `{"ca_cert": "keys/ca.pem", "root_cert": "` + abs + `",
+		"leaf": {"common_name": "a"}, "output": {"cert": "out/c.pem", "key": "out/k.pem"}}`
+	if err := os.WriteFile(path, []byte(data), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := loadConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{
+		cfg.CACert:       filepath.Join(dir, "keys", "ca.pem"),
+		cfg.RootCert:     abs,
+		cfg.Output.Cert:  filepath.Join(dir, "out", "c.pem"),
+		cfg.Output.Key:   filepath.Join(dir, "out", "k.pem"),
+		cfg.CAKey:        "",
+		cfg.Output.Chain: "",
+	}
+	for got, w := range want {
+		if got != w {
+			t.Errorf("path %q, want %q", got, w)
+		}
+	}
+}
+
+func TestLoadConfigErrors(t *testing.T) {
+	dir := t.TempDir()
+	if _, err := loadConfig(filepath.Join(dir, "missing.json")); err == nil {
+		t.Error("expected error for missing file")
+	}
+	path := filepath.Join(dir, "config.json")
+	if err := os.WriteFile(path, []byte(`{"bogus": 1}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := loadConfig(path); err == nil || !strings.Contains(err.Error(), "parse") {
+		t.Errorf("expected parse error for unknown field, got %v", err)
 	}
 }

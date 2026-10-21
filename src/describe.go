@@ -35,7 +35,7 @@ func describe(w io.Writer, title string, c *x509.Certificate) {
 	if sans := subjectAltNames(c); len(sans) > 0 {
 		fmt.Fprintf(w, "  SANs:           %s\n", strings.Join(sans, ", "))
 	}
-	for _, oid := range c.PolicyIdentifiers {
+	for _, oid := range c.Policies {
 		fmt.Fprintf(w, "  Policy:         %s\n", oid)
 	}
 	if len(c.SubjectKeyId) > 0 {

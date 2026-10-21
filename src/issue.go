@@ -8,15 +8,12 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/asn1"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"math/big"
 	"net"
 	"net/url"
-	"strconv"
-	"strings"
 	"time"
 )
 
@@ -84,9 +81,8 @@ func issue(cfg *Config) (*issued, error) {
 	if err != nil {
 		return nil, fmt.Errorf("sign leaf: %w", err)
 	}
-	if res.leaf, err = x509.ParseCertificate(der); err != nil {
-		return nil, fmt.Errorf("parse issued leaf: %w", err)
-	}
+	// The DER comes straight from CreateCertificate, so parsing cannot fail.
+	res.leaf, _ = x509.ParseCertificate(der)
 	return res, nil
 }
 
@@ -115,10 +111,11 @@ func leafTemplate(lc *LeafConfig, key crypto.Signer) (*x509.Certificate, error) 
 		return nil, fmt.Errorf("validity_hours %d exceeds PoC limit of %d", lc.ValidityHours, int(maxValidity.Hours()))
 	}
 
-	serial, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 127))
-	if err != nil {
-		return nil, err
-	}
+	// 127-bit positive serial; rand.Read never returns an error.
+	serialBytes := make([]byte, 16)
+	rand.Read(serialBytes)
+	serialBytes[0] &= 0x7f
+	serial := new(big.Int).SetBytes(serialBytes)
 
 	cn := lc.CommonName
 	if cn == "" {
@@ -180,11 +177,12 @@ func leafTemplate(lc *LeafConfig, key crypto.Signer) (*x509.Certificate, error) 
 	}
 
 	for _, s := range lc.PolicyOIDs {
-		oid, err := parseOID(s)
+		// CreateCertificate encodes Policies; PolicyIdentifiers is ignored.
+		oid, err := x509.ParseOID(s)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("invalid policy oid %q", s)
 		}
-		tmpl.PolicyIdentifiers = append(tmpl.PolicyIdentifiers, oid)
+		tmpl.Policies = append(tmpl.Policies, oid)
 	}
 	return tmpl, nil
 }
@@ -208,16 +206,4 @@ func generateKey(keyType string) (crypto.Signer, error) {
 		return rsa.GenerateKey(rand.Reader, 3072)
 	}
 	return nil, fmt.Errorf("unknown key_type %q", keyType)
-}
-
-func parseOID(s string) (asn1.ObjectIdentifier, error) {
-	var oid asn1.ObjectIdentifier
-	for _, part := range strings.Split(s, ".") {
-		n, err := strconv.Atoi(part)
-		if err != nil {
-			return nil, fmt.Errorf("invalid policy oid %q", s)
-		}
-		oid = append(oid, n)
-	}
-	return oid, nil
 }

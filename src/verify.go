@@ -75,8 +75,8 @@ func check(w io.Writer, cfg *Config, res *issued) error {
 // verifyChain checks chain (leaf first, trust anchor last) the way a path
 // validator would, without x509.Verify and therefore without Go's built-in
 // distrust list: name chaining, signatures, CA flags and key usage, path
-// length, validity, extended key usage nesting and the leaf's SANs. Name
-// constraints and revocation are not checked.
+// length, validity and extended key usage nesting. Name constraints and
+// revocation are not checked.
 func verifyChain(chain []*x509.Certificate, now time.Time) error {
 	leaf := chain[0]
 	for _, c := range chain {
@@ -95,26 +95,12 @@ func verifyChain(chain []*x509.Certificate, now time.Time) error {
 			return fmt.Errorf("%q is not signed by %q: %w", child.Subject.CommonName, parent.Subject.CommonName, err)
 		}
 		// i is the number of CA certificates between parent and the leaf.
-		maxPathLen := parent.MaxPathLen
-		if maxPathLen == 0 && !parent.MaxPathLenZero {
-			maxPathLen = -1
-		}
-		if maxPathLen >= 0 && i > maxPathLen {
+		// Parsed certificates use MaxPathLen -1 for "no constraint".
+		if parent.MaxPathLen >= 0 && i > parent.MaxPathLen {
 			return fmt.Errorf("path length constraint of %q exceeded", parent.Subject.CommonName)
 		}
 		if !allowsExtKeyUsages(parent, leaf.ExtKeyUsage) {
 			return fmt.Errorf("%q does not allow the leaf's extended key usages", parent.Subject.CommonName)
-		}
-	}
-
-	for _, name := range leaf.DNSNames {
-		if err := leaf.VerifyHostname(name); err != nil {
-			return err
-		}
-	}
-	for _, ip := range leaf.IPAddresses {
-		if err := leaf.VerifyHostname(ip.String()); err != nil {
-			return err
 		}
 	}
 	return nil

@@ -8,34 +8,47 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 )
 
+// exit is replaced in tests.
+var exit = os.Exit
+
 func main() {
+	exit(cli(os.Args[1:], os.Stdout, os.Stderr))
+}
+
+// cli parses args, runs the tool and returns the process exit code.
+func cli(args []string, stdout, stderr io.Writer) int {
 	var sans sanFlag
-	configPath := flag.String("config", "config.json", "path to JSON config")
-	show := flag.Bool("show", false, "only generate and print the certificate PEM; write no files and skip checks")
-	chain := flag.Bool("chain", false, "also print the complete chain (leaf, CA, root if configured) as PEM")
-	jsonOut := flag.Bool("json", false, "print only the complete chain as a CT add-chain JSON request; checks still run silently")
-	flag.Var(&sans, "san", "subject alternative name, repeatable or comma-separated (e.g. -san a.example,IP:192.0.2.1); replaces SANs from the config")
-	flag.Parse()
+	fs := flag.NewFlagSet("emudhra-poc", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	configPath := fs.String("config", "config.json", "path to JSON config")
+	show := fs.Bool("show", false, "only generate and print the certificate PEM; write no files and skip checks")
+	chain := fs.Bool("chain", false, "also print the complete chain (leaf, CA, root if configured) as PEM")
+	jsonOut := fs.Bool("json", false, "print only the complete chain as a CT add-chain JSON request; checks still run silently")
+	fs.Var(&sans, "san", "subject alternative name, repeatable or comma-separated (e.g. -san a.example,IP:192.0.2.1); replaces SANs from the config")
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+		return 2
+	}
 
 	cfg, err := loadConfig(*configPath)
+	if err == nil && len(sans) > 0 {
+		err = applySANs(&cfg.Leaf, sans)
+	}
+	if err == nil {
+		err = run(cfg, runOptions{show: *show, chain: *chain, json: *jsonOut}, stdout)
+	}
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "error:", err)
-		os.Exit(1)
+		fmt.Fprintln(stderr, "error:", err)
+		return 1
 	}
-	if len(sans) > 0 {
-		if err := applySANs(&cfg.Leaf, sans); err != nil {
-			fmt.Fprintln(os.Stderr, "error:", err)
-			os.Exit(1)
-		}
-	}
-	opts := runOptions{show: *show, chain: *chain, json: *jsonOut}
-	if err := run(cfg, opts, os.Stdout); err != nil {
-		fmt.Fprintln(os.Stderr, "error:", err)
-		os.Exit(1)
-	}
+	return 0
 }
