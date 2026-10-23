@@ -1,0 +1,180 @@
+{
+  "data": [
+    {
+      "id": "180aa427-89bf-4bd3-8d1c-e48389ebb82c",
+      "issuerName": "MHsxCzAJBgNVBAYTAkdCMRswGQYDVQQIDBJHcmVhdGVyIE1hbmNoZXN0ZXIxEDAOBgNVBAcMB1NhbGZvcmQxGjAYBgNVBAoMEUNvbW9kbyBDQSBMaW1pdGVkMSEwHwYDVQQDDBhBQUEgQ2VydGlmaWNhdGUgU2VydmljZXM=",
+      "serialNumber": "Zf3g+mZYAG+ArtDLZFPqDA==",
+      "details": {
+        "bug": "https://bugzilla.mozilla.org/show_bug.cgi?id=1976939"
+      }
+    },
+    {
+      "id": "2b8c2141-f0e1-4506-8d7a-be0e41acde66",
+      "issuerName": "MHsxCzAJBgNVBAYTAkdCMRswGQYDVQQIDBJHcmVhdGVyIE1hbmNoZXN0ZXIxEDAOBgNVBAcMB1NhbGZvcmQxGjAYBgNVBAoMEUNvbW9kbyBDQSBMaW1pdGVkMSEwHwYDVQQDDBhBQUEgQ2VydGlmaWNhdGUgU2VydmljZXM=",
+      "serialNumber": "fHxdvf2CERpzvs38JwG48A==",
+      "details": {
+        "bug": "https://bugzilla.mozilla.org/show_bug.cgi?id=1900843"
+      }
+    },
+    {
+      "id": "3f07ab6b-0d52-41a3-9a7b-de945502a3b8",
+      "subject": "MD8xCzAJBgNVBAYTAk5MMRMwEQYDVQQKDAplTXVkaHJhIEJWMRswGQYDVQQDDBJFTSBPViBUTFMgQ0EgLSBHM0I=",
+      "pubKeyHash": "Q7/6GdbvZRRR9oQeAZkx6W9vLq7/KKtLbxzkV23icXs=",
+      "details": {
+        "bug": "https://bugzilla.mozilla.org/show_bug.cgi?id=2083382"
+      }
+    },
+    {
+      "id": "4967039d-7e90-48a7-98db-037e23ea9f9d",
+      "issuerName": "MHsxCzAJBgNVBAYTAkdCMRswGQYDVQQIDBJHcmVhdGVyIE1hbmNoZXN0ZXIxEDAOBgNVBAcMB1NhbGZvcmQxGjAYBgNVBAoMEUNvbW9kbyBDQSBMaW1pdGVkMSEwHwYDVQQDDBhBQUEgQ2VydGlmaWNhdGUgU2VydmljZXM=",
+      "serialNumber": "AL5MsT5GaLfGIuqr8kaFA/U=",
+      "details": {
+        "bug": "https://bugzilla.mozilla.org/show_bug.cgi?id=1976939"
+      }
+    },
+    {
+      "id": "5856b9af-5c14-46e7-b660-04d1cc3f2819",
+      "subject": "MD8xCzAJBgNVBAYTAk5MMRMwEQYDVQQKDAplTXVkaHJhIEJWMRswGQYDVQQDDBJFTSBFViBUTFMgQ0EgLSBHM0I=",
+      "pubKeyHash": "4CVMf83CZeLw+KQo2rt1q0rgObSHLWL17lfwh31aikE=",
+      "details": {
+        "bug": "https://bugzilla.mozilla.org/show_bug.cgi?id=2083382"
+      }
+    },
+    {
+      "id": "59eb8419-18e3-486e-ab96-8efd503230d4",
+      "issuerName": "MFYxCzAJBgNVBAYTAklOMSUwIwYDVQQKDBxlTXVkaHJhIFRlY2hub2xvZ2llcyBMaW1pdGVkMSAwHgYDVQQDDBdlbVNpZ24gUm9vdCBUTFMgQ0EgLSBHMw==",
+      "serialNumber": "YvCeuNogQ/3NKfn/1GRg",
+      "details": {
+        "bug": "https://bugzilla.mozilla.org/show_bug.cgi?id=1984708"
+      }
+    },
+    {
+      "id": "5c45ef72-d30c-4cf2-a596-5b22de8793b0",
+      "issuerName": "MHsxCzAJBgNVBAYTAkdCMRswGQYDVQQIDBJHcmVhdGVyIE1hbmNoZXN0ZXIxEDAOBgNVBAcMB1NhbGZvcmQxGjAYBgNVBAoMEUNvbW9kbyBDQSBMaW1pdGVkMSEwHwYDVQQDDBhBQUEgQ2VydGlmaWNhdGUgU2VydmljZXM=",
+      "serialNumber": "APW9c8guN8LMJ4hGuq43ybQ=",
+      "details": {
+        "bug": "https://bugzilla.mozilla.org/show_bug.cgi?id=1976939"
+      }
+    },
+    {
+      "id": "5ed2b441-a5bf-4f8e-89af-d01fa292a9b8",
+      "subject": "MD8xCzAJBgNVBAYTAk5MMRMwEQYDVQQKDAplTXVkaHJhIEJWMRswGQYDVQQDDBJFTSBEViBUTFMgQ0EgLSBHM0I=",
+      "pubKeyHash": "6+1kdcLC2A/LGZ8/6N1uazzmC3frFdTkLD3sDG9bUQU=",
+      "details": {
+        "bug": "https://bugzilla.mozilla.org/show_bug.cgi?id=2083382"
+      }
+    },
+    {
+      "id": "5fb952e1-b09f-4187-805c-b87a91dad9bb",
+      "issuerName": "MFYxCzAJBgNVBAYTAklOMSUwIwYDVQQKDBxlTXVkaHJhIFRlY2hub2xvZ2llcyBMaW1pdGVkMSAwHgYDVQQDDBdlbVNpZ24gUm9vdCBUTFMgQ0EgLSBHMw==",
+      "serialNumber": "AMfEHv6S2CXwXq6EGkqCwQ==",
+      "details": {
+        "bug": "https://bugzilla.mozilla.org/show_bug.cgi?id=2083382"
+      }
+    },
+    {
+      "id": "6fc15a27-f22e-414b-a8c7-93be30e2ff91",
+      "issuerName": "MHsxCzAJBgNVBAYTAkdCMRswGQYDVQQIDBJHcmVhdGVyIE1hbmNoZXN0ZXIxEDAOBgNVBAcMB1NhbGZvcmQxGjAYBgNVBAoMEUNvbW9kbyBDQSBMaW1pdGVkMSEwHwYDVQQDDBhBQUEgQ2VydGlmaWNhdGUgU2VydmljZXM=",
+      "serialNumber": "AM9mvXf+Q8vcLtaEDy7JtYs=",
+      "details": {
+        "bug": "https://bugzilla.mozilla.org/show_bug.cgi?id=1976939"
+      }
+    },
+    {
+      "id": "838c6528-6ca1-4c77-afd8-1e9d02a9994a",
+      "issuerName": "MHsxCzAJBgNVBAYTAkdCMRswGQYDVQQIDBJHcmVhdGVyIE1hbmNoZXN0ZXIxEDAOBgNVBAcMB1NhbGZvcmQxGjAYBgNVBAoMEUNvbW9kbyBDQSBMaW1pdGVkMSEwHwYDVQQDDBhBQUEgQ2VydGlmaWNhdGUgU2VydmljZXM=",
+      "serialNumber": "ALktcwNAMksOwBvs4gx6Bo4=",
+      "details": {
+        "bug": "https://bugzilla.mozilla.org/show_bug.cgi?id=1976939"
+      }
+    },
+    {
+      "id": "9e38cfc6-3f1e-46ce-8d12-6bb66651c558",
+      "issuerName": "MFYxCzAJBgNVBAYTAklOMSUwIwYDVQQKDBxlTXVkaHJhIFRlY2hub2xvZ2llcyBMaW1pdGVkMSAwHgYDVQQDDBdlbVNpZ24gUm9vdCBUTFMgQ0EgLSBHMw==",
+      "serialNumber": "FeWZ2k4JYsvuOSa9uYqL",
+      "details": {
+        "bug": "https://bugzilla.mozilla.org/show_bug.cgi?id=1984708"
+      }
+    },
+    {
+      "id": "a0ac0973-ae76-4860-8f9c-eff5fd57bc3b",
+      "issuerName": "MFYxCzAJBgNVBAYTAklOMSUwIwYDVQQKDBxlTXVkaHJhIFRlY2hub2xvZ2llcyBMaW1pdGVkMSAwHgYDVQQDDBdlbVNpZ24gUm9vdCBUTFMgQ0EgLSBHMw==",
+      "serialNumber": "bK2jZ/scEACIEg6iAtVo",
+      "details": {
+        "bug": "https://bugzilla.mozilla.org/show_bug.cgi?id=2083382"
+      }
+    },
+    {
+      "id": "adaa1e8d-57cb-4cfb-b647-305aa20f1b04",
+      "subject": "MEAxCzAJBgNVBAYTAlVTMRQwEgYDVQQKDAtlTXVkaHJhIEluYzEbMBkGA1UEAwwSRU0gRVYgVExTIENBIC0gRzND",
+      "pubKeyHash": "XAZgorFkkQ2P9YnBjhRVLp4Owjfc7+LLc21BpIEfgaA=",
+      "details": {
+        "bug": "https://bugzilla.mozilla.org/show_bug.cgi?id=2083382"
+      }
+    },
+    {
+      "id": "bd595f9a-0da9-4980-bcc2-ef1e1bf70c7b",
+      "issuerName": "MFYxCzAJBgNVBAYTAklOMSUwIwYDVQQKDBxlTXVkaHJhIFRlY2hub2xvZ2llcyBMaW1pdGVkMSAwHgYDVQQDDBdlbVNpZ24gUm9vdCBUTFMgQ0EgLSBHMw==",
+      "serialNumber": "AKSu5njyM2K0wORgt3LyFA==",
+      "details": {
+        "bug": "https://bugzilla.mozilla.org/show_bug.cgi?id=2083382"
+      }
+    },
+    {
+      "id": "c64301a0-888f-469d-86fc-a03bcd6bc407",
+      "issuerName": "MFYxCzAJBgNVBAYTAklOMSUwIwYDVQQKDBxlTXVkaHJhIFRlY2hub2xvZ2llcyBMaW1pdGVkMSAwHgYDVQQDDBdlbVNpZ24gUm9vdCBUTFMgQ0EgLSBHMw==",
+      "serialNumber": "KWkmwiejoVJjkrGUgqUE",
+      "details": {
+        "bug": "https://bugzilla.mozilla.org/show_bug.cgi?id=2083382"
+      }
+    },
+    {
+      "id": "dfebe454-5411-4f64-bd26-ff0346cad020",
+      "issuerName": "MFYxCzAJBgNVBAYTAklOMSUwIwYDVQQKDBxlTXVkaHJhIFRlY2hub2xvZ2llcyBMaW1pdGVkMSAwHgYDVQQDDBdlbVNpZ24gUm9vdCBUTFMgQ0EgLSBHMw==",
+      "serialNumber": "WIsuPCu4zaE+GhIJJUMh",
+      "details": {
+        "bug": "https://bugzilla.mozilla.org/show_bug.cgi?id=2083382"
+      }
+    },
+    {
+      "id": "e1f38621-9f9e-42d5-988d-3e0c4393875a",
+      "issuerName": "MFYxCzAJBgNVBAYTAklOMSUwIwYDVQQKDBxlTXVkaHJhIFRlY2hub2xvZ2llcyBMaW1pdGVkMSAwHgYDVQQDDBdlbVNpZ24gUm9vdCBUTFMgQ0EgLSBHMw==",
+      "serialNumber": "IXstbRZ+wKap+j4LKDMR",
+      "details": {
+        "bug": "https://bugzilla.mozilla.org/show_bug.cgi?id=1984708"
+      }
+    },
+    {
+      "id": "eefb82bf-3d32-4b7e-9dff-19fd2c21f755",
+      "issuerName": "MFYxCzAJBgNVBAYTAklOMSUwIwYDVQQKDBxlTXVkaHJhIFRlY2hub2xvZ2llcyBMaW1pdGVkMSAwHgYDVQQDDBdlbVNpZ24gUm9vdCBUTFMgQ0EgLSBHMw==",
+      "serialNumber": "AIAJkopkEHYBrwX6LxnxCQ==",
+      "details": {
+        "bug": "https://bugzilla.mozilla.org/show_bug.cgi?id=2083382"
+      }
+    },
+    {
+      "id": "f67aff65-7a13-42ef-b818-74bb69053273",
+      "subject": "MEAxCzAJBgNVBAYTAlVTMRQwEgYDVQQKDAtlTXVkaHJhIEluYzEbMBkGA1UEAwwSRU0gT1YgVExTIENBIC0gRzND",
+      "pubKeyHash": "Y+zv7kMdSVI7wRNsTnLQIGpHcIbK9gbNXPAlaGwQnPg=",
+      "details": {
+        "bug": "https://bugzilla.mozilla.org/show_bug.cgi?id=2083382"
+      }
+    },
+    {
+      "id": "f8fc9c61-d943-40de-b3e2-9027da2ababd",
+      "issuerName": "MHsxCzAJBgNVBAYTAkdCMRswGQYDVQQIDBJHcmVhdGVyIE1hbmNoZXN0ZXIxEDAOBgNVBAcMB1NhbGZvcmQxGjAYBgNVBAoMEUNvbW9kbyBDQSBMaW1pdGVkMSEwHwYDVQQDDBhBQUEgQ2VydGlmaWNhdGUgU2VydmljZXM=",
+      "serialNumber": "dvI4YMRLl0rwkuZJqJYF0A==",
+      "details": {
+        "bug": "https://bugzilla.mozilla.org/show_bug.cgi?id=1976939"
+      }
+    },
+    {
+      "id": "fb4be101-8280-4d4e-866e-fd0213bc3a02",
+      "subject": "MEAxCzAJBgNVBAYTAlVTMRQwEgYDVQQKDAtlTXVkaHJhIEluYzEbMBkGA1UEAwwSRU0gRFYgVExTIENBIC0gRzND",
+      "pubKeyHash": "Sd01PcK5GaN3BkURfQ5gwWEV59G8JZ7v5zSwDqQ0/l8=",
+      "details": {
+        "bug": "https://bugzilla.mozilla.org/show_bug.cgi?id=2083382"
+      }
+    }
+  ]
+}
