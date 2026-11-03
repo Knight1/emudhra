@@ -7,6 +7,8 @@
     "common_name": "emudhra-poc.example",
     "dns_names": ["emudhra-poc.example"],
     "organization": ["eMudhra key compromise PoC"],
+    "country": ["DE"],
+    "locality": ["Berlin"],
     "validity_hours": 24,
     "key_type": "ecdsa-p256",
     "ext_key_usage": ["serverAuth"]

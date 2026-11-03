@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	"crypto/elliptic"
+	"crypto/sha256"
+	"crypto/x509"
+	"fmt"
 	"io"
 	"path/filepath"
 	"strings"
@@ -135,6 +138,8 @@ func TestLeafAllOptions(t *testing.T) {
 		Organization:          []string{"Org"},
 		OrganizationalUnit:    []string{"Lab"},
 		Country:               []string{"DE"},
+		Province:              []string{"Berlin"},
+		Locality:              []string{"Berlin"},
 		ValidityHours:         48,
 		KeyType:               "rsa-2048",
 		ExtKeyUsage:           []string{"serverAuth", "clientAuth"},
@@ -168,6 +173,9 @@ func TestLeafAllOptions(t *testing.T) {
 	if got := leaf.Subject.OrganizationalUnit; len(got) != 2 || got[0] != "Lab" || got[1] != pocMarker {
 		t.Errorf("OU = %q", got)
 	}
+	if s := leaf.Subject; len(s.Province) != 1 || len(s.Locality) != 1 {
+		t.Errorf("subject = %s", s)
+	}
 	if got := leaf.NotAfter.Sub(leaf.NotBefore); got != 48*time.Hour+5*time.Minute {
 		t.Errorf("validity = %s", got)
 	}
@@ -184,5 +192,57 @@ func TestLeafCommonNameFallback(t *testing.T) {
 	}
 	if cn := parsePEMCerts(t, out.Bytes())[0].Subject.CommonName; cn != "ops@poc.example" {
 		t.Errorf("CN = %q", cn)
+	}
+}
+
+func TestLeafDefaults(t *testing.T) {
+	for _, tc := range []struct {
+		org    []string
+		policy string
+	}{{nil, policyDV}, {[]string{"Org"}, policyOV}} {
+		dir := t.TempDir()
+		caPath := writeWeakCA(t, dir, testScalar)
+		cfg := testConfig(dir, caPath)
+		cfg.Leaf.Organization = tc.org
+
+		var out bytes.Buffer
+		if err := run(cfg, runOptions{show: true}, &out); err != nil {
+			t.Fatal(err)
+		}
+		leaf := parsePEMCerts(t, out.Bytes())[0]
+		if len(leaf.Policies) != 1 || leaf.Policies[0].String() != tc.policy {
+			t.Errorf("org %q: policies = %v, want %s", tc.org, leaf.Policies, tc.policy)
+		}
+		ca, err := readCert(caPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := fmt.Sprintf("http://crt.sh/?d=%X", sha256.Sum256(ca.Raw))
+		if got := leaf.IssuingCertificateURL; len(got) != 1 || got[0] != want {
+			t.Errorf("CA issuers = %q, want %q", got, want)
+		}
+	}
+}
+
+func TestLeafInheritsCAPolicies(t *testing.T) {
+	dir := t.TempDir()
+	caPath := writeCA(t, dir, testScalar, func(c *x509.Certificate) {
+		for _, s := range []string{"2.23.140.1.1", "1.3.6.1.4.1.50977.1.0.1", anyPolicy} {
+			oid, err := x509.ParseOID(s)
+			if err != nil {
+				t.Fatal(err)
+			}
+			c.Policies = append(c.Policies, oid)
+		}
+	})
+	cfg := testConfig(dir, caPath)
+	cfg.Leaf.Organization = []string{"Org"}
+
+	var out bytes.Buffer
+	if err := run(cfg, runOptions{show: true}, &out); err != nil {
+		t.Fatal(err)
+	}
+	if got := fmt.Sprint(parsePEMCerts(t, out.Bytes())[0].Policies); got != "[2.23.140.1.1 1.3.6.1.4.1.50977.1.0.1]" {
+		t.Errorf("policies = %s", got)
 	}
 }

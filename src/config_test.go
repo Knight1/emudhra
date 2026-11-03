@@ -9,7 +9,7 @@ import (
 )
 
 func TestApplySANs(t *testing.T) {
-	lc := LeafConfig{DNSNames: []string{"from-config.example"}}
+	lc := LeafConfig{CommonName: "from-config.example", DNSNames: []string{"from-config.example"}}
 	err := applySANs(&lc, []string{"a.example", "DNS:b.example", "192.0.2.7", "2001:db8::1", "IP:::1",
 		"ops@a.example", "https://a.example/x", "URI:spiffe://a/b"})
 	if err != nil {

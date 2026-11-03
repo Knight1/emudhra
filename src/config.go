@@ -28,6 +28,8 @@ type LeafConfig struct {
 	Organization          []string `json:"organization,omitempty"`
 	OrganizationalUnit    []string `json:"organizational_unit,omitempty"`
 	Country               []string `json:"country,omitempty"`
+	Province              []string `json:"province,omitempty"`
+	Locality              []string `json:"locality,omitempty"`
 	ValidityHours         int      `json:"validity_hours,omitempty"`
 	KeyType               string   `json:"key_type,omitempty"`      // ecdsa-p256 | ecdsa-p384 | rsa-2048 | rsa-3072
 	ExtKeyUsage           []string `json:"ext_key_usage,omitempty"` // serverAuth | clientAuth | codeSigning | emailProtection
@@ -81,8 +83,10 @@ func loadConfig(path string) (*Config, error) {
 	return cfg, nil
 }
 
-// applySANs replaces the SANs in lc with the given CLI values.
+// applySANs replaces the SANs in lc with the given CLI values. The common
+// name is cleared too, so it is taken from the new SANs.
 func applySANs(lc *LeafConfig, sans []string) error {
+	lc.CommonName = ""
 	lc.DNSNames, lc.IPAddresses, lc.EmailAddresses, lc.URIs = nil, nil, nil, nil
 	for _, san := range sans {
 		kind, value, ok := strings.Cut(san, ":")

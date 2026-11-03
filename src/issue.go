@@ -6,6 +6,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/binary"
@@ -21,6 +22,9 @@ const (
 	pocMarker        = "PoC"
 	maxValidity      = 7 * 24 * time.Hour
 	defaultMaxScalar = 1 << 16
+	policyDV         = "2.23.140.1.2.1"
+	policyOV         = "2.23.140.1.2.2"
+	anyPolicy        = "2.5.29.32.0"
 )
 
 type issued struct {
@@ -72,7 +76,7 @@ func issue(cfg *Config) (*issued, error) {
 	if err != nil {
 		return nil, err
 	}
-	tmpl, err := leafTemplate(&cfg.Leaf, res.leafKey)
+	tmpl, err := leafTemplate(&cfg.Leaf, ca, res.leafKey)
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +106,7 @@ func recoverScalar(pub *ecdsa.PublicKey, max uint64) (*ecdsa.PrivateKey, uint64,
 	return nil, 0, fmt.Errorf("no private scalar <= %d matches the CA public key", max)
 }
 
-func leafTemplate(lc *LeafConfig, key crypto.Signer) (*x509.Certificate, error) {
+func leafTemplate(lc *LeafConfig, ca *x509.Certificate, key crypto.Signer) (*x509.Certificate, error) {
 	validity := 24 * time.Hour
 	if lc.ValidityHours > 0 {
 		validity = time.Duration(lc.ValidityHours) * time.Hour
@@ -134,6 +138,8 @@ func leafTemplate(lc *LeafConfig, key crypto.Signer) (*x509.Certificate, error) 
 			Organization:       lc.Organization,
 			OrganizationalUnit: append(append([]string{}, lc.OrganizationalUnit...), pocMarker),
 			Country:            lc.Country,
+			Province:           lc.Province,
+			Locality:           lc.Locality,
 		},
 		NotBefore:             now.Add(-5 * time.Minute),
 		NotAfter:              now.Add(validity),
@@ -144,6 +150,10 @@ func leafTemplate(lc *LeafConfig, key crypto.Signer) (*x509.Certificate, error) 
 		CRLDistributionPoints: lc.CRLDistributionPoints,
 		OCSPServer:            lc.OCSPServer,
 		IssuingCertificateURL: lc.IssuingCertificateURL,
+	}
+	if len(tmpl.IssuingCertificateURL) == 0 {
+		// The BRs require a caIssuers URL; crt.sh serves the CA certificate.
+		tmpl.IssuingCertificateURL = []string{fmt.Sprintf("http://crt.sh/?d=%X", sha256.Sum256(ca.Raw))}
 	}
 	if _, ok := key.(*rsa.PrivateKey); ok {
 		tmpl.KeyUsage |= x509.KeyUsageKeyEncipherment
@@ -176,7 +186,25 @@ func leafTemplate(lc *LeafConfig, key crypto.Signer) (*x509.Certificate, error) 
 		tmpl.ExtKeyUsage = append(tmpl.ExtKeyUsage, eku)
 	}
 
-	for _, s := range lc.PolicyOIDs {
+	policies := lc.PolicyOIDs
+	if len(policies) == 0 {
+		// Inherit the CA's policies: the eMudhra intermediates each carry
+		// one CA/B Forum OID (DV, OV, EV or code signing) and their CPS OIDs.
+		for _, oid := range ca.Policies {
+			if s := oid.String(); s != anyPolicy {
+				policies = append(policies, s)
+			}
+		}
+	}
+	if len(policies) == 0 {
+		// The BRs require a CA/B Forum policy: OV if the subject has an
+		// organization, DV otherwise.
+		policies = []string{policyDV}
+		if len(lc.Organization) > 0 {
+			policies = []string{policyOV}
+		}
+	}
+	for _, s := range policies {
 		// CreateCertificate encodes Policies; PolicyIdentifiers is ignored.
 		oid, err := x509.ParseOID(s)
 		if err != nil {
