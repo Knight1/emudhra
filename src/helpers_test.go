@@ -163,6 +163,38 @@ func parsePEMCerts(t *testing.T, data []byte) []*x509.Certificate {
 	return certs
 }
 
+func mustReadCert(t *testing.T, path string) *x509.Certificate {
+	t.Helper()
+	c, err := readCert(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return c
+}
+
+// parsePEMCRL reads and parses an "X509 CRL" PEM file.
+func parsePEMCRL(t *testing.T, path string) *x509.RevocationList {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return parsePEMBytesCRL(t, data)
+}
+
+func parsePEMBytesCRL(t *testing.T, data []byte) *x509.RevocationList {
+	t.Helper()
+	block, _ := pem.Decode(data)
+	if block == nil || block.Type != "X509 CRL" {
+		t.Fatalf("no X509 CRL PEM block in %q", data)
+	}
+	crl, err := x509.ParseRevocationList(block.Bytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return crl
+}
+
 func newTestCert(t *testing.T, tmpl, parent *x509.Certificate, pub, signer any) *x509.Certificate {
 	t.Helper()
 	der, err := x509.CreateCertificate(rand.Reader, tmpl, parent, pub, signer)

@@ -11,18 +11,35 @@ import (
 	"time"
 )
 
+// reporter prints a [ OK ]/[FAIL] line per check and collects the failures,
+// so failures are visible even when w discards output.
+type reporter struct {
+	w      io.Writer
+	failed []string
+}
+
+func (r *reporter) report(name string, err error) {
+	if err != nil {
+		r.failed = append(r.failed, fmt.Sprintf("%s: %v", name, err))
+		fmt.Fprintf(r.w, "  [FAIL] %s: %v\n", name, err)
+		return
+	}
+	fmt.Fprintf(r.w, "  [ OK ] %s\n", name)
+}
+
+// err returns an error naming every failed check, or nil if all passed.
+func (r *reporter) err() error {
+	if len(r.failed) > 0 {
+		return fmt.Errorf("checks failed: %s", strings.Join(r.failed, "; "))
+	}
+	return nil
+}
+
 // check prints the result of each check to w and returns an error naming
 // every failed check, so failures are visible even when w discards output.
 func check(w io.Writer, res *issued) error {
-	var failed []string
-	report := func(name string, err error) {
-		if err != nil {
-			failed = append(failed, fmt.Sprintf("%s: %v", name, err))
-			fmt.Fprintf(w, "  [FAIL] %s: %v\n", name, err)
-			return
-		}
-		fmt.Fprintf(w, "  [ OK ] %s\n", name)
-	}
+	rep := &reporter{w: w}
+	report := rep.report
 
 	fmt.Fprintln(w, "Checks")
 	report("leaf signature verifies under CA public key", res.leaf.CheckSignatureFrom(res.ca))
@@ -67,10 +84,7 @@ func check(w io.Writer, res *issued) error {
 
 	reportSCTs(w, res, report)
 
-	if len(failed) > 0 {
-		return fmt.Errorf("checks failed: %s", strings.Join(failed, "; "))
-	}
-	return nil
+	return rep.err()
 }
 
 // verifyChain checks chain (leaf first, trust anchor last) the way a path

@@ -63,6 +63,32 @@ func TestCLI(t *testing.T) {
 	}
 }
 
+func TestCLICRL(t *testing.T) {
+	dir := t.TempDir()
+	cfg := testConfig(dir, writeWeakCA(t, dir, testScalar))
+	cfg.CRL = CRLConfig{Revoked: []RevokedConfig{{Serial: "0x01", Reason: 1}}}
+	config := writeConfig(t, dir, cfg)
+	out := filepath.Join(dir, "cli.crl")
+
+	var stdout, stderr bytes.Buffer
+	if code := cli([]string{"-config", config, "-crl", "-crl-out", out}, &stdout, &stderr); code != 0 {
+		t.Fatalf("exit code %d (stderr: %s)", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "crl:      "+out) {
+		t.Errorf("stdout missing CRL output path:\n%s", stdout.String())
+	}
+	parsePEMCRL(t, out)
+
+	// A config that fails to load is reported.
+	stderr.Reset()
+	if code := cli([]string{"-config", filepath.Join(dir, "missing.json"), "-crl"}, &bytes.Buffer{}, &stderr); code != 1 {
+		t.Errorf("missing config: exit code %d", code)
+	}
+	if !strings.Contains(stderr.String(), "error:") {
+		t.Errorf("stderr missing error:\n%s", stderr.String())
+	}
+}
+
 func TestMainExitCode(t *testing.T) {
 	stderr, err := os.Create(filepath.Join(t.TempDir(), "stderr"))
 	if err != nil {

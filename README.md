@@ -86,6 +86,8 @@ cp config.example.json config.json   # set ca_cert to one of the CA PEMs
 | `-ct-log`     | CT log URL, repeatable or comma-separated; embeds SCTs; replaces `ct_logs` |
 | `-out-dir`    | Also write `<serial>.crt`, `.key` and `.crt_pre` here; overrides `output.dir` |
 | `-not-before` | Backdate the leaf (Unix timestamp or UTC datetime); overrides `leaf.not_before` |
+| `-crl`        | Sign a CRL from the `crl` config with the recovered key, then exit |
+| `-crl-out`    | Write the signed CRL PEM here; overrides `crl.output`           |
 | `-revocation` | Also check the issuing CA against the cached CRL and OneCRL     |
 | `-update-revocation` | Refresh the revocation cache, then exit                  |
 | `-keys`, `-roots`, `-revocation-dir` | Directories (default `keys`, `roots`, `revocation`) |
@@ -142,6 +144,28 @@ chain is verified at its notBefore instead of now.
 ./emudhra-poc -show -not-before 2026-01-02T15:04:05Z
 ./emudhra-poc -show -not-before 1767366245
 ```
+
+## Signing CRLs
+
+The compromised key signs CRLs as well as certificates. With `-crl` the tool
+recovers the key and signs the CRL described by the `crl` config section, then
+exits:
+
+- `number`: CRL number; defaults to `this_update` as a Unix timestamp
+- `this_update`: same formats as `-not-before`; defaults to now
+- `next_update_hours`: validity of the CRL (default 24)
+- `output`: PEM path (or `-crl-out`); the CRL PEM goes to stdout if unset
+- `revoked`: entries of `serial` (hex, as printed in the output, with an
+  optional `0x` prefix), an optional RFC 5280 `reason` code, and an optional
+  `revocation_time` (defaults to `this_update`)
+
+```
+./emudhra-poc -crl -crl-out leaf.crl
+./emudhra-poc -crl | openssl crl -noout -text
+```
+
+An empty `revoked` list produces a valid empty CRL. The CRL is signed by the
+revoked CA key, so revocation-checking clients should still reject the chain.
 
 ## Lint-clean leaves
 

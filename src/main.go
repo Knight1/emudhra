@@ -37,6 +37,8 @@ func cli(args []string, stdout, stderr io.Writer) int {
 	rootsDir := fs.String("roots", "roots", "directory with the root certificates that sign the CRLs")
 	revocationDir := fs.String("revocation-dir", "revocation", "directory of the revocation cache")
 	outDir := fs.String("out-dir", "", "also write <serial>.crt, <serial>.key and (with CT logs) <serial>.crt_pre to this directory; overrides output.dir")
+	crl := fs.Bool("crl", false, "sign a CRL from the crl config with the recovered CA key and exit; prints the CRL PEM unless an output is set")
+	crlOut := fs.String("crl-out", "", "write the signed CRL PEM here; overrides crl.output")
 	notBefore := fs.String("not-before", "", "backdate the leaf: Unix timestamp or UTC datetime (e.g. 2026-01-02T15:04:05Z); overrides leaf.not_before")
 	fs.Var(&ctLogs, "ct-log", "CT log URL, repeatable or comma-separated; submits a precertificate and embeds the SCTs; replaces ct_logs from the config")
 	fs.Var(&sans, "san", "subject alternative name, repeatable or comma-separated (e.g. -san a.example,IP:192.0.2.1); replaces SANs from the config")
@@ -49,6 +51,14 @@ func cli(args []string, stdout, stderr io.Writer) int {
 
 	if *update {
 		return exitCode(stderr, updateRevocation(stdout, httpClient, *keysDir, *rootsDir, *revocationDir, oneCRLURL))
+	}
+
+	if *crl {
+		cfg, err := loadConfig(*configPath)
+		if err != nil {
+			return exitCode(stderr, err)
+		}
+		return exitCode(stderr, signCRL(cfg, *crlOut, stdout))
 	}
 
 	cfg, err := loadConfig(*configPath)

@@ -22,5 +22,14 @@
     "key": "out/leaf.key",
     "chain": "out/chain.pem",
     "dir": "out/issued"
+  },
+  "crl": {
+    "number": 1,
+    "next_update_hours": 168,
+    "output": "out/leaf.crl",
+    "revoked": [
+      {"serial": "deadbeef", "reason": 1},
+      {"serial": "0x1a2b3c", "reason": 4, "revocation_time": "2026-01-02T03:04:05Z"}
+    ]
   }
 }

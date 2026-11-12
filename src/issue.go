@@ -38,35 +38,11 @@ type issued struct {
 }
 
 func issue(cfg *Config) (*issued, error) {
-	ca, err := readCert(cfg.CACert)
+	ca, caKey, scalar, err := loadCA(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("ca_cert: %w", err)
+		return nil, err
 	}
-	caPub, ok := ca.PublicKey.(*ecdsa.PublicKey)
-	if !ok {
-		return nil, fmt.Errorf("ca_cert: expected ECDSA public key, got %T", ca.PublicKey)
-	}
-
-	res := &issued{ca: ca}
-	var caKey *ecdsa.PrivateKey
-	if cfg.CAKey != "" {
-		caKey, err = readECKey(cfg.CAKey)
-		if err != nil {
-			return nil, fmt.Errorf("ca_key: %w", err)
-		}
-	} else {
-		max := cfg.MaxScalar
-		if max == 0 {
-			max = defaultMaxScalar
-		}
-		caKey, res.scalar, err = recoverScalar(caPub, max)
-		if err != nil {
-			return nil, err
-		}
-	}
-	if !caKey.PublicKey.Equal(caPub) {
-		return nil, errors.New("CA private key does not match CA certificate")
-	}
+	res := &issued{ca: ca, scalar: scalar}
 
 	if cfg.RootCert != "" {
 		if res.root, err = readCert(cfg.RootCert); err != nil {
@@ -96,6 +72,38 @@ func issue(cfg *Config) (*issued, error) {
 	// The DER comes straight from CreateCertificate, so parsing cannot fail.
 	res.leaf, _ = x509.ParseCertificate(der)
 	return res, nil
+}
+
+// loadCA loads the compromised intermediate and its ECDSA private key. The
+// key is recovered from the public certificate by brute force unless ca_key
+// is configured. scalar is the recovered private scalar, or 0 when the key
+// was loaded from a file.
+func loadCA(cfg *Config) (ca *x509.Certificate, caKey *ecdsa.PrivateKey, scalar uint64, err error) {
+	ca, err = readCert(cfg.CACert)
+	if err != nil {
+		return nil, nil, 0, fmt.Errorf("ca_cert: %w", err)
+	}
+	caPub, ok := ca.PublicKey.(*ecdsa.PublicKey)
+	if !ok {
+		return nil, nil, 0, fmt.Errorf("ca_cert: expected ECDSA public key, got %T", ca.PublicKey)
+	}
+	if cfg.CAKey != "" {
+		if caKey, err = readECKey(cfg.CAKey); err != nil {
+			return nil, nil, 0, fmt.Errorf("ca_key: %w", err)
+		}
+	} else {
+		max := cfg.MaxScalar
+		if max == 0 {
+			max = defaultMaxScalar
+		}
+		if caKey, scalar, err = recoverScalar(caPub, max); err != nil {
+			return nil, nil, 0, err
+		}
+	}
+	if !caKey.PublicKey.Equal(caPub) {
+		return nil, nil, 0, errors.New("CA private key does not match CA certificate")
+	}
+	return ca, caKey, scalar, nil
 }
 
 // recoverScalar finds d in [1, max] such that d*G equals pub.

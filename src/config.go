@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"net"
 	"os"
 	"path/filepath"
@@ -20,6 +21,24 @@ type Config struct {
 	CTLogs    []CTLog      `json:"ct_logs,omitempty"`    // submit a precertificate and embed the SCTs
 	Leaf      LeafConfig   `json:"leaf"`
 	Output    OutputConfig `json:"output"`
+	CRL       CRLConfig    `json:"crl,omitempty"` // signed with -crl
+}
+
+// CRLConfig describes a CRL to sign with the compromised CA key (-crl). An
+// empty Revoked list produces a valid empty CRL.
+type CRLConfig struct {
+	Number          int64           `json:"number,omitempty"`            // CRL number; defaults to this_update as a Unix timestamp
+	ThisUpdate      string          `json:"this_update,omitempty"`       // Unix timestamp or UTC datetime; defaults to now
+	NextUpdateHours int             `json:"next_update_hours,omitempty"` // validity of the CRL; defaults to 24
+	Output          string          `json:"output,omitempty"`            // PEM path; printed to stdout if empty and -crl-out is unset
+	Revoked         []RevokedConfig `json:"revoked,omitempty"`
+}
+
+// RevokedConfig is one entry of a CRL.
+type RevokedConfig struct {
+	Serial         string `json:"serial"`                    // hex, as shown in the tool output (optional 0x prefix)
+	Reason         int    `json:"reason,omitempty"`          // RFC 5280 reason code; 0 is unspecified
+	RevocationTime string `json:"revocation_time,omitempty"` // Unix timestamp or UTC datetime; defaults to this_update
 }
 
 type LeafConfig struct {
@@ -93,7 +112,7 @@ func loadConfig(path string) (*Config, error) {
 
 	// Relative paths in the config are relative to the config file.
 	base := filepath.Dir(path)
-	for _, p := range []*string{&cfg.CACert, &cfg.CAKey, &cfg.RootCert, &cfg.Output.Cert, &cfg.Output.Key, &cfg.Output.Chain, &cfg.Output.Dir} {
+	for _, p := range []*string{&cfg.CACert, &cfg.CAKey, &cfg.RootCert, &cfg.Output.Cert, &cfg.Output.Key, &cfg.Output.Chain, &cfg.Output.Dir, &cfg.CRL.Output} {
 		if *p != "" && !filepath.IsAbs(*p) {
 			*p = filepath.Join(base, *p)
 		}
@@ -165,4 +184,17 @@ func parseTime(s string) (time.Time, error) {
 		}
 	}
 	return time.Time{}, fmt.Errorf("invalid not_before %q (use a Unix timestamp or a UTC datetime such as 2026-01-02T15:04:05Z)", s)
+}
+
+// parseSerial parses a certificate serial number as hex, the way the tool
+// prints it, with an optional 0x prefix.
+func parseSerial(s string) (*big.Int, error) {
+	t := strings.TrimSpace(s)
+	t = strings.TrimPrefix(t, "0x")
+	t = strings.TrimPrefix(t, "0X")
+	n, ok := new(big.Int).SetString(t, 16)
+	if !ok || n.Sign() < 0 {
+		return nil, fmt.Errorf("invalid serial %q (use a hex serial as shown in the output)", s)
+	}
+	return n, nil
 }
