@@ -9,6 +9,8 @@ import (
 	"crypto/x509/pkix"
 	"encoding/asn1"
 	"math/big"
+	"net"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -168,6 +170,25 @@ func TestAllowsExtKeyUsages(t *testing.T) {
 	for _, tc := range cases {
 		if got := allowsExtKeyUsages(tc.ca, tc.usages); got != tc.want {
 			t.Errorf("%s: got %t, want %t", tc.name, got, tc.want)
+		}
+	}
+}
+
+func TestCertName(t *testing.T) {
+	u, _ := url.Parse("https://poc.example/")
+	for _, tc := range []struct {
+		cert *x509.Certificate
+		want string
+	}{
+		{&x509.Certificate{Subject: pkix.Name{CommonName: "cn"}, DNSNames: []string{"dns"}}, "cn"},
+		{&x509.Certificate{DNSNames: []string{"dns"}}, "dns"},
+		{&x509.Certificate{EmailAddresses: []string{"a@poc.example"}}, "a@poc.example"},
+		{&x509.Certificate{IPAddresses: []net.IP{net.ParseIP("192.0.2.1")}}, "192.0.2.1"},
+		{&x509.Certificate{URIs: []*url.URL{u}}, "https://poc.example/"},
+		{&x509.Certificate{Subject: pkix.Name{Organization: []string{"Org"}}}, "O=Org"},
+	} {
+		if got := certName(tc.cert); got != tc.want {
+			t.Errorf("certName = %q, want %q", got, tc.want)
 		}
 	}
 }

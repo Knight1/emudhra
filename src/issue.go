@@ -9,6 +9,7 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/asn1"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -19,7 +20,6 @@ import (
 )
 
 const (
-	pocMarker        = "PoC"
 	maxValidity      = 7 * 24 * time.Hour
 	defaultMaxScalar = 1 << 16
 	policyDV         = "2.23.140.1.2.1"
@@ -122,7 +122,7 @@ func leafTemplate(lc *LeafConfig, ca *x509.Certificate, key crypto.Signer) (*x50
 	serial := new(big.Int).SetBytes(serialBytes)
 
 	cn := lc.CommonName
-	if cn == "" {
+	if cn == "" && !lc.OmitCommonName {
 		for _, names := range [][]string{lc.DNSNames, lc.IPAddresses, lc.EmailAddresses} {
 			if len(names) > 0 {
 				cn = names[0]
@@ -136,10 +136,12 @@ func leafTemplate(lc *LeafConfig, ca *x509.Certificate, key crypto.Signer) (*x50
 		Subject: pkix.Name{
 			CommonName:         cn,
 			Organization:       lc.Organization,
-			OrganizationalUnit: append(append([]string{}, lc.OrganizationalUnit...), pocMarker),
+			OrganizationalUnit: lc.OrganizationalUnit,
 			Country:            lc.Country,
 			Province:           lc.Province,
 			Locality:           lc.Locality,
+			SerialNumber:       lc.SerialNumber,
+			ExtraNames:         evSubjectAttributes(lc),
 		},
 		NotBefore:             now.Add(-5 * time.Minute),
 		NotAfter:              now.Add(validity),
@@ -213,6 +215,32 @@ func leafTemplate(lc *LeafConfig, ca *x509.Certificate, key crypto.Signer) (*x50
 		tmpl.Policies = append(tmpl.Policies, oid)
 	}
 	return tmpl, nil
+}
+
+// EV Guidelines subject attributes that pkix.Name has no field for.
+var (
+	oidBusinessCategory     = asn1.ObjectIdentifier{2, 5, 4, 15}
+	oidJurisdictionLocality = asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 311, 60, 2, 1, 1}
+	oidJurisdictionProvince = asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 311, 60, 2, 1, 2}
+	oidJurisdictionCountry  = asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 311, 60, 2, 1, 3}
+)
+
+func evSubjectAttributes(lc *LeafConfig) []pkix.AttributeTypeAndValue {
+	var attrs []pkix.AttributeTypeAndValue
+	for _, a := range []struct {
+		oid   asn1.ObjectIdentifier
+		value string
+	}{
+		{oidBusinessCategory, lc.BusinessCategory},
+		{oidJurisdictionLocality, lc.JurisdictionLocality},
+		{oidJurisdictionProvince, lc.JurisdictionProvince},
+		{oidJurisdictionCountry, lc.JurisdictionCountry},
+	} {
+		if a.value != "" {
+			attrs = append(attrs, pkix.AttributeTypeAndValue{Type: a.oid, Value: a.value})
+		}
+	}
+	return attrs
 }
 
 var extKeyUsages = map[string]x509.ExtKeyUsage{

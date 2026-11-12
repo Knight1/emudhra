@@ -22,7 +22,7 @@ func TestIssueAndCheck(t *testing.T) {
 	if err := run(cfg, runOptions{}, &out); err != nil {
 		t.Fatalf("run: %v\n%s", err, out.String())
 	}
-	for _, want := range []string{fmt.Sprintf("Recovered key:  d = %d", testScalar), "[ OK ] chain verification", pocMarker} {
+	for _, want := range []string{fmt.Sprintf("Recovered key:  d = %d", testScalar), "[ OK ] chain verification"} {
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("output missing %q:\n%s", want, out.String())
 		}

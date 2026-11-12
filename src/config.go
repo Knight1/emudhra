@@ -21,6 +21,7 @@ type Config struct {
 
 type LeafConfig struct {
 	CommonName            string   `json:"common_name"`
+	OmitCommonName        bool     `json:"omit_common_name,omitempty"` // no CN; otherwise it defaults to the first SAN
 	DNSNames              []string `json:"dns_names,omitempty"`
 	IPAddresses           []string `json:"ip_addresses,omitempty"`
 	EmailAddresses        []string `json:"email_addresses,omitempty"`
@@ -30,6 +31,11 @@ type LeafConfig struct {
 	Country               []string `json:"country,omitempty"`
 	Province              []string `json:"province,omitempty"`
 	Locality              []string `json:"locality,omitempty"`
+	SerialNumber          string   `json:"serial_number,omitempty"`         // EV: registration number
+	BusinessCategory      string   `json:"business_category,omitempty"`     // EV: e.g. "Private Organization"
+	JurisdictionCountry   string   `json:"jurisdiction_country,omitempty"`  // EV: two-letter country code
+	JurisdictionProvince  string   `json:"jurisdiction_province,omitempty"` // EV: optional
+	JurisdictionLocality  string   `json:"jurisdiction_locality,omitempty"` // EV: optional
 	ValidityHours         int      `json:"validity_hours,omitempty"`
 	KeyType               string   `json:"key_type,omitempty"`      // ecdsa-p256 | ecdsa-p384 | rsa-2048 | rsa-3072
 	ExtKeyUsage           []string `json:"ext_key_usage,omitempty"` // serverAuth | clientAuth | codeSigning | emailProtection

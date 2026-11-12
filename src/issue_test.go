@@ -57,6 +57,9 @@ func TestIssueErrors(t *testing.T) {
 	}{
 		{"no ca", func(t *testing.T, dir string, cfg *Config) { cfg.CACert = "" }, "ca_cert is required"},
 		{"no names", func(t *testing.T, dir string, cfg *Config) { cfg.Leaf = LeafConfig{} }, "at least one SAN"},
+		{"cn and omit", func(t *testing.T, dir string, cfg *Config) {
+			cfg.Leaf.CommonName, cfg.Leaf.OmitCommonName = "poc.example", true
+		}, "must be empty"},
 		{"missing ca", func(t *testing.T, dir string, cfg *Config) { cfg.CACert = filepath.Join(dir, "missing.pem") }, "ca_cert:"},
 		{"rsa ca", func(t *testing.T, dir string, cfg *Config) { cfg.CACert = writeRSACA(t, dir) }, "expected ECDSA public key"},
 		{"missing ca key", func(t *testing.T, dir string, cfg *Config) { cfg.CAKey = filepath.Join(dir, "missing.key") }, "ca_key:"},
@@ -140,6 +143,11 @@ func TestLeafAllOptions(t *testing.T) {
 		Country:               []string{"DE"},
 		Province:              []string{"Berlin"},
 		Locality:              []string{"Berlin"},
+		SerialNumber:          "HRB 12345",
+		BusinessCategory:      "Private Organization",
+		JurisdictionCountry:   "DE",
+		JurisdictionProvince:  "Berlin",
+		JurisdictionLocality:  "Berlin",
 		ValidityHours:         48,
 		KeyType:               "rsa-2048",
 		ExtKeyUsage:           []string{"serverAuth", "clientAuth"},
@@ -170,11 +178,25 @@ func TestLeafAllOptions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := leaf.Subject.OrganizationalUnit; len(got) != 2 || got[0] != "Lab" || got[1] != pocMarker {
+	if got := leaf.Subject.OrganizationalUnit; len(got) != 1 || got[0] != "Lab" {
 		t.Errorf("OU = %q", got)
 	}
-	if s := leaf.Subject; len(s.Province) != 1 || len(s.Locality) != 1 {
+	if s := leaf.Subject; len(s.Province) != 1 || len(s.Locality) != 1 || s.SerialNumber != "HRB 12345" {
 		t.Errorf("subject = %s", s)
+	}
+	ev := map[string]string{}
+	for _, a := range leaf.Subject.Names {
+		ev[a.Type.String()] = fmt.Sprint(a.Value)
+	}
+	for oid, want := range map[string]string{
+		"2.5.4.15":                 "Private Organization",
+		"1.3.6.1.4.1.311.60.2.1.1": "Berlin",
+		"1.3.6.1.4.1.311.60.2.1.2": "Berlin",
+		"1.3.6.1.4.1.311.60.2.1.3": "DE",
+	} {
+		if ev[oid] != want {
+			t.Errorf("subject %s = %q, want %q", oid, ev[oid], want)
+		}
 	}
 	if got := leaf.NotAfter.Sub(leaf.NotBefore); got != 48*time.Hour+5*time.Minute {
 		t.Errorf("validity = %s", got)
@@ -190,8 +212,34 @@ func TestLeafCommonNameFallback(t *testing.T) {
 	if err := run(cfg, runOptions{show: true}, &out); err != nil {
 		t.Fatal(err)
 	}
-	if cn := parsePEMCerts(t, out.Bytes())[0].Subject.CommonName; cn != "ops@poc.example" {
-		t.Errorf("CN = %q", cn)
+	subj := parsePEMCerts(t, out.Bytes())[0].Subject
+	if subj.CommonName != "ops@poc.example" {
+		t.Errorf("CN = %q", subj.CommonName)
+	}
+	// Only configured attributes appear; the BRs forbid OU in TLS certificates.
+	if len(subj.Names) != 1 {
+		t.Errorf("subject = %s, want CN only", subj)
+	}
+}
+
+func TestLeafOmitCommonName(t *testing.T) {
+	dir := t.TempDir()
+	cfg := testConfig(dir, writeWeakCA(t, dir, testScalar))
+	cfg.Leaf = LeafConfig{OmitCommonName: true, DNSNames: []string{"poc.example"}}
+
+	var out bytes.Buffer
+	if err := run(cfg, runOptions{}, &out); err != nil {
+		t.Fatalf("run: %v\n%s", err, out.String())
+	}
+	if !strings.Contains(out.String(), "chain: poc.example -> ") {
+		t.Errorf("chain not named after the SAN:\n%s", out.String())
+	}
+	leaf, err := readCert(cfg.Output.Cert)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(leaf.Subject.Names) != 0 {
+		t.Errorf("subject = %s, want empty", leaf.Subject)
 	}
 }
 

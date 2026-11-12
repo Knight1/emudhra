@@ -1,17 +1,21 @@
 {
-  "ca_cert": "keys/CN=EM DV TLS CA - G3B,O=eMudhra BV,C=NL.pem",
+  "ca_cert": "keys/CN=EM EV TLS CA - G3B,O=eMudhra BV,C=NL.pem",
   "ca_key": "",
   "root_cert": "",
   "max_scalar": 65536,
   "leaf": {
-    "common_name": "emudhra-poc.example",
+    "omit_common_name": true,
     "dns_names": ["emudhra-poc.example"],
-    "organization": ["eMudhra key compromise PoC"],
+    "organization": ["eMudhra key lol"],
     "country": ["DE"],
     "locality": ["Berlin"],
+    "serial_number": "HRB 12345",
+    "business_category": "Private Organization",
+    "jurisdiction_country": "DE",
     "validity_hours": 24,
     "key_type": "ecdsa-p256",
-    "ext_key_usage": ["serverAuth"]
+    "ext_key_usage": ["serverAuth"],
+    "crl_distribution_points": ["http://emudhra-poc.example/leaf.crl"]
   },
   "output": {
     "cert": "out/leaf.pem",

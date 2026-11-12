@@ -47,7 +47,7 @@ func check(w io.Writer, res *issued) error {
 	report("chain verification against "+anchor, verifyChain(chain, time.Now()))
 	names := make([]string, len(chain))
 	for i, c := range chain {
-		names[i] = c.Subject.CommonName
+		names[i] = certName(c)
 	}
 	fmt.Fprintf(w, "         chain: %s\n", strings.Join(names, " -> "))
 
@@ -140,4 +140,24 @@ func goVerify(chain []*x509.Certificate) error {
 func publicKeysEqual(a, b crypto.PublicKey) bool {
 	ak, ok := a.(interface{ Equal(crypto.PublicKey) bool })
 	return ok && ak.Equal(b)
+}
+
+// certName names a certificate by its common name, or by its first SAN if
+// it has none.
+func certName(c *x509.Certificate) string {
+	if c.Subject.CommonName != "" {
+		return c.Subject.CommonName
+	}
+	for _, names := range [][]string{c.DNSNames, c.EmailAddresses} {
+		if len(names) > 0 {
+			return names[0]
+		}
+	}
+	if len(c.IPAddresses) > 0 {
+		return c.IPAddresses[0].String()
+	}
+	if len(c.URIs) > 0 {
+		return c.URIs[0].String()
+	}
+	return c.Subject.String()
 }

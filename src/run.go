@@ -29,6 +29,9 @@ func run(cfg *Config, opts runOptions, w io.Writer) error {
 	if lc.CommonName == "" && len(lc.DNSNames)+len(lc.IPAddresses)+len(lc.EmailAddresses)+len(lc.URIs) == 0 {
 		return errors.New("leaf.common_name or at least one SAN is required")
 	}
+	if lc.OmitCommonName && lc.CommonName != "" {
+		return errors.New("leaf.common_name must be empty when leaf.omit_common_name is set")
+	}
 
 	res, err := issue(cfg)
 	if err != nil {

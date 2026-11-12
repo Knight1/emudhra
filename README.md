@@ -7,7 +7,7 @@ public CA certificates and used to sign arbitrary leaf certificates.
 All affected intermediates are revoked (caCompromise).
 
 The tool recovers the CA key from the CA certificate, issues a leaf
-certificate (OU `PoC`, max. 7 days validity) and verifies the result.
+certificate (max. 7 days validity) and verifies the result.
 
 ```
 $ ./emudhra-poc
@@ -33,7 +33,7 @@ Issuing CA
   Recovered key:  d = 156
 
 Leaf certificate
-  Subject:        CN=we-are-lost.com,OU=PoC,O=eMudhra key lol
+  Subject:        CN=we-are-lost.com,O=eMudhra key lol
   Issuer:         CN=EM DV TLS CA - G3B,O=eMudhra BV,C=NL
   Serial:         0b43fde43400886738a0db939171bb9a
   Not before:     2026-10-21T00:20:19Z
@@ -88,6 +88,24 @@ cp config.example.json config.json   # set ca_cert to one of the CA PEMs
 | `-keys`, `-roots`, `-revocation-dir` | Directories (default `keys`, `roots`, `revocation`) |
 
 SAN types are inferred or set with a prefix: `DNS:`, `IP:`, `email:`, `URI:`.
+
+## Lint-clean leaves
+
+The leaf contains only the subject attributes from the config, and inherits
+the CA/B Forum policy of the issuing CA. To pass linters such as
+[pkilint](https://github.com/digicert/pkilint), match the subject to that
+policy:
+
+- DV: only `country` (optional) besides the SANs
+- OV: `organization`, `country` and `province` and/or `locality`
+- EV: as OV, plus `serial_number`, `business_category` and
+  `jurisdiction_country` (`jurisdiction_province`, `jurisdiction_locality`
+  optional)
+
+The common name defaults to the first SAN; set `"omit_common_name": true`
+to leave it out (not recommended for EV). `organizational_unit` is forbidden
+for all of them. Microsoft also requires
+revocation information, so set `crl_distribution_points` or `ocsp_server`.
 
 ## Revocation
 
