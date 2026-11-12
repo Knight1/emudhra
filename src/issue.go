@@ -34,6 +34,7 @@ type issued struct {
 	leaf    *x509.Certificate
 	leafKey crypto.Signer
 	scts    []sctResult // empty without ct_logs
+	precert []byte      // DER; nil without ct_logs
 }
 
 func issue(cfg *Config) (*issued, error) {
@@ -83,7 +84,7 @@ func issue(cfg *Config) (*issued, error) {
 	}
 
 	if len(cfg.CTLogs) > 0 {
-		if res.scts, err = addSCTs(tmpl, cfg.CTLogs, ca, res.root, res.leafKey.Public(), caKey); err != nil {
+		if res.scts, res.precert, err = addSCTs(tmpl, cfg.CTLogs, ca, res.root, res.leafKey.Public(), caKey); err != nil {
 			return nil, err
 		}
 	}

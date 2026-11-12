@@ -14,10 +14,13 @@ import (
 	"encoding/asn1"
 	"encoding/base64"
 	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"math/big"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -352,5 +355,39 @@ func TestRemoveExtension(t *testing.T) {
 		if _, err := removeExtension(tbs, oidCTPoison); err == nil {
 			t.Errorf("%s: no error", name)
 		}
+	}
+}
+
+func TestCTOutputDirFlag(t *testing.T) {
+	f := newFakeLog(t)
+	dir := t.TempDir()
+	config := writeConfig(t, dir, testConfig(dir, writeWeakCA(t, dir, testScalar)))
+	outDir := filepath.Join(dir, "serials")
+
+	var stdout, stderr bytes.Buffer
+	if code := cli([]string{"-config", config, "-ct-log", f.url("/ok"), "-out-dir", outDir}, &stdout, &stderr); code != 0 {
+		t.Fatalf("exit code %d: %s", code, stderr.String())
+	}
+	leaf, err := readCert(filepath.Join(dir, "out", "leaf.pem"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := filepath.Join(outDir, hex.EncodeToString(leaf.SerialNumber.Bytes()))
+	cert, err := readCert(base + ".crt")
+	if err != nil || !cert.Equal(leaf) {
+		t.Errorf("%s.crt: %v", base, err)
+	}
+	if _, err := os.Stat(base + ".key"); err != nil {
+		t.Error(err)
+	}
+	pre, err := readCert(base + ".crt_pre")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pre.SerialNumber.Cmp(leaf.SerialNumber) != 0 || len(pre.UnhandledCriticalExtensions) != 1 || !pre.UnhandledCriticalExtensions[0].Equal(oidCTPoison) {
+		t.Error(".crt_pre is not the poisoned precertificate of the leaf")
+	}
+	if !strings.Contains(stdout.String(), "precert:  "+base+".crt_pre") {
+		t.Errorf("output missing precert:\n%s", stdout.String())
 	}
 }

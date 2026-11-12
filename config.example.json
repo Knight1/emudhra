@@ -20,6 +20,7 @@
   "output": {
     "cert": "out/leaf.pem",
     "key": "out/leaf.key",
-    "chain": "out/chain.pem"
+    "chain": "out/chain.pem",
+    "dir": "out/issued"
   }
 }

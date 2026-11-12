@@ -194,12 +194,44 @@ func TestWriteOutputsErrors(t *testing.T) {
 	for name, mod := range cases {
 		c, r := *cfg, *res
 		mod(&c, &r)
-		if err := writeOutputs(&c, &r, nil); err == nil {
+		if _, err := writeOutputs(&c, &r, nil); err == nil {
 			t.Errorf("%s: expected error", name)
 		}
 	}
 	if err := run(&Config{CACert: cfg.CACert, Leaf: cfg.Leaf}, runOptions{}, io.Discard); err == nil ||
-		!strings.Contains(err.Error(), "output.cert and output.key are required") {
+		!strings.Contains(err.Error(), "output.cert and output.key, or output.dir, are required") {
 		t.Errorf("run without outputs: %v", err)
+	}
+}
+
+func TestOutputDir(t *testing.T) {
+	dir := t.TempDir()
+	cfg := testConfig(dir, writeWeakCA(t, dir, testScalar))
+	outDir := filepath.Join(dir, "serials")
+	cfg.Output = OutputConfig{Dir: outDir}
+
+	var out bytes.Buffer
+	if err := run(cfg, runOptions{}, &out); err != nil {
+		t.Fatalf("run: %v\n%s", err, out.String())
+	}
+	entries, err := os.ReadDir(outDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 2 {
+		t.Fatalf("files in output.dir: %v, want <serial>.crt and <serial>.key", entries)
+	}
+	cert, err := readCert(filepath.Join(outDir, entries[0].Name())) // <serial>.crt sorts first
+	if err != nil {
+		t.Fatal(err)
+	}
+	serial := fmt.Sprintf("%x", cert.SerialNumber.Bytes())
+	for _, name := range []string{serial + ".crt", serial + ".key"} {
+		if !strings.Contains(out.String(), filepath.Join(outDir, name)) {
+			t.Errorf("output missing %s:\n%s", name, out.String())
+		}
+	}
+	if strings.Contains(out.String(), "precert:") {
+		t.Errorf("precert listed without CT logs:\n%s", out.String())
 	}
 }

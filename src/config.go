@@ -61,6 +61,7 @@ type OutputConfig struct {
 	Cert  string `json:"cert"`
 	Key   string `json:"key"`
 	Chain string `json:"chain,omitempty"`
+	Dir   string `json:"dir,omitempty"` // also write <serial>.crt, .key and .crt_pre here
 }
 
 // listFlag collects repeatable, comma-separated flag values such as -san
@@ -92,7 +93,7 @@ func loadConfig(path string) (*Config, error) {
 
 	// Relative paths in the config are relative to the config file.
 	base := filepath.Dir(path)
-	for _, p := range []*string{&cfg.CACert, &cfg.CAKey, &cfg.RootCert, &cfg.Output.Cert, &cfg.Output.Key, &cfg.Output.Chain} {
+	for _, p := range []*string{&cfg.CACert, &cfg.CAKey, &cfg.RootCert, &cfg.Output.Cert, &cfg.Output.Key, &cfg.Output.Chain, &cfg.Output.Dir} {
 		if *p != "" && !filepath.IsAbs(*p) {
 			*p = filepath.Join(base, *p)
 		}

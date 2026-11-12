@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/x509"
+	"encoding/hex"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -52,7 +53,8 @@ func run(cfg *Config, opts runOptions, w io.Writer) error {
 		return nil
 	}
 
-	if err := writeOutputs(cfg, res, leafPEM); err != nil {
+	files, err := writeOutputs(cfg, res, leafPEM)
+	if err != nil {
 		return err
 	}
 
@@ -75,7 +77,7 @@ func run(cfg *Config, opts runOptions, w io.Writer) error {
 		fmt.Fprintln(text)
 		err = revocationReport(text, res.ca, opts)
 	}
-	printOutputs(text, cfg)
+	printOutputs(text, files)
 	if err != nil {
 		return err
 	}
@@ -101,43 +103,63 @@ func revocationReport(w io.Writer, ca *x509.Certificate, opts runOptions) error 
 	return nil
 }
 
-func printOutputs(w io.Writer, cfg *Config) {
+// outFile is a file written by writeOutputs.
+type outFile struct {
+	label string
+	path  string
+	data  []byte
+	mode  os.FileMode
+}
+
+func printOutputs(w io.Writer, files []outFile) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Output")
-	fmt.Fprintf(w, "  cert:  %s\n  key:   %s\n", cfg.Output.Cert, cfg.Output.Key)
-	if cfg.Output.Chain != "" {
-		fmt.Fprintf(w, "  chain: %s\n", cfg.Output.Chain)
+	for _, f := range files {
+		fmt.Fprintf(w, "  %-9s %s\n", f.label+":", f.path)
 	}
 	fmt.Fprintln(w, "\nNote: the issuing CA was revoked with reason caCompromise; revocation-checking clients should reject this chain.")
 }
 
-func writeOutputs(cfg *Config, res *issued, leafPEM []byte) error {
-	if cfg.Output.Cert == "" || cfg.Output.Key == "" {
-		return errors.New("output.cert and output.key are required (or use -show)")
+// writeOutputs writes the configured files and returns them in order.
+// output.dir receives <serial>.crt, <serial>.key and, with CT logs,
+// <serial>.crt_pre (the precertificate).
+func writeOutputs(cfg *Config, res *issued, leafPEM []byte) ([]outFile, error) {
+	out := cfg.Output
+	if (out.Cert == "" || out.Key == "") && out.Dir == "" {
+		return nil, errors.New("output.cert and output.key, or output.dir, are required (or use -show)")
 	}
 	keyDER, err := x509.MarshalPKCS8PrivateKey(res.leafKey)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	files := map[string][]byte{
-		cfg.Output.Cert: leafPEM,
-		cfg.Output.Key:  pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: keyDER}),
-	}
-	if cfg.Output.Chain != "" {
-		files[cfg.Output.Chain] = append(append([]byte{}, leafPEM...),
-			pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: res.ca.Raw})...)
-	}
-	for path, data := range files {
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			return err
-		}
-		mode := os.FileMode(0o644)
-		if path == cfg.Output.Key {
-			mode = 0o600
-		}
-		if err := os.WriteFile(path, data, mode); err != nil {
-			return err
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: keyDER})
+
+	var files []outFile
+	add := func(label, path string, data []byte, mode os.FileMode) {
+		if path != "" {
+			files = append(files, outFile{label, path, data, mode})
 		}
 	}
-	return nil
+	add("cert", out.Cert, leafPEM, 0o644)
+	add("key", out.Key, keyPEM, 0o600)
+	add("chain", out.Chain, append(append([]byte{}, leafPEM...),
+		pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: res.ca.Raw})...), 0o644)
+	if out.Dir != "" {
+		base := filepath.Join(out.Dir, hex.EncodeToString(res.leaf.SerialNumber.Bytes()))
+		add("cert", base+".crt", leafPEM, 0o644)
+		add("key", base+".key", keyPEM, 0o600)
+		if res.precert != nil {
+			add("precert", base+".crt_pre", pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: res.precert}), 0o644)
+		}
+	}
+
+	for _, f := range files {
+		if err := os.MkdirAll(filepath.Dir(f.path), 0o755); err != nil {
+			return nil, err
+		}
+		if err := os.WriteFile(f.path, f.data, f.mode); err != nil {
+			return nil, err
+		}
+	}
+	return files, nil
 }

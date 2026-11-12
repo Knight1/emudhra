@@ -36,6 +36,7 @@ func cli(args []string, stdout, stderr io.Writer) int {
 	keysDir := fs.String("keys", "keys", "directory with the CA certificates, for -update-revocation")
 	rootsDir := fs.String("roots", "roots", "directory with the root certificates that sign the CRLs")
 	revocationDir := fs.String("revocation-dir", "revocation", "directory of the revocation cache")
+	outDir := fs.String("out-dir", "", "also write <serial>.crt, <serial>.key and (with CT logs) <serial>.crt_pre to this directory; overrides output.dir")
 	notBefore := fs.String("not-before", "", "backdate the leaf: Unix timestamp or UTC datetime (e.g. 2026-01-02T15:04:05Z); overrides leaf.not_before")
 	fs.Var(&ctLogs, "ct-log", "CT log URL, repeatable or comma-separated; submits a precertificate and embeds the SCTs; replaces ct_logs from the config")
 	fs.Var(&sans, "san", "subject alternative name, repeatable or comma-separated (e.g. -san a.example,IP:192.0.2.1); replaces SANs from the config")
@@ -59,6 +60,9 @@ func cli(args []string, stdout, stderr io.Writer) int {
 		for _, u := range ctLogs {
 			cfg.CTLogs = append(cfg.CTLogs, CTLog{URL: u})
 		}
+	}
+	if err == nil && *outDir != "" {
+		cfg.Output.Dir = *outDir
 	}
 	if err == nil && *notBefore != "" {
 		cfg.Leaf.NotBefore = *notBefore

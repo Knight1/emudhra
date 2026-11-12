@@ -84,6 +84,7 @@ cp config.example.json config.json   # set ca_cert to one of the CA PEMs
 | `-chain`      | Also print the complete chain (leaf, CA, root) as PEM           |
 | `-json`       | Print only the chain as a CT `add-chain` JSON request           |
 | `-ct-log`     | CT log URL, repeatable or comma-separated; embeds SCTs; replaces `ct_logs` |
+| `-out-dir`    | Also write `<serial>.crt`, `.key` and `.crt_pre` here; overrides `output.dir` |
 | `-not-before` | Backdate the leaf (Unix timestamp or UTC datetime); overrides `leaf.not_before` |
 | `-revocation` | Also check the issuing CA against the cached CRL and OneCRL     |
 | `-update-revocation` | Refresh the revocation cache, then exit                  |
@@ -113,6 +114,18 @@ two SCTs from distinct log operators; with fewer, the checks print a note.
 
 ```
 ./emudhra-poc -ct-log https://ct.example/2026h2/
+```
+
+## Output directory
+
+`output.dir` (or `-out-dir`) additionally stores every issued leaf under its
+serial number (lowercase hex, as printed in the leaf details):
+`<serial>.crt` (certificate), `<serial>.key` (private key) and, with CT logs,
+`<serial>.crt_pre` (the precertificate), all PEM. With `output.dir` set,
+`output.cert` and `output.key` are optional.
+
+```
+./emudhra-poc -out-dir issued -ct-log https://ct.example/2026h2/
 ```
 
 ## Backdating

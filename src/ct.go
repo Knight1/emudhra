@@ -48,15 +48,16 @@ type sctResult struct {
 }
 
 // addSCTs issues a precertificate for tmpl, submits it to every log and adds
-// the SCT list extension to tmpl. Logs that reject the precertificate are
-// recorded in the results; at least one SCT is required.
-func addSCTs(tmpl *x509.Certificate, logs []CTLog, ca, root *x509.Certificate, leafPub crypto.PublicKey, caKey crypto.Signer) ([]sctResult, error) {
+// the SCT list extension to tmpl. It returns the results and the DER of the
+// precertificate. Logs that reject the precertificate are recorded in the
+// results; at least one SCT is required.
+func addSCTs(tmpl *x509.Certificate, logs []CTLog, ca, root *x509.Certificate, leafPub crypto.PublicKey, caKey crypto.Signer) ([]sctResult, []byte, error) {
 	pre := *tmpl
 	pre.ExtraExtensions = append(slices.Clone(tmpl.ExtraExtensions),
 		pkix.Extension{Id: oidCTPoison, Critical: true, Value: asn1.NullBytes})
 	der, err := x509.CreateCertificate(rand.Reader, &pre, ca, leafPub, caKey)
 	if err != nil {
-		return nil, fmt.Errorf("sign precertificate: %w", err)
+		return nil, nil, fmt.Errorf("sign precertificate: %w", err)
 	}
 	chain := [][]byte{der, ca.Raw}
 	if root != nil {
@@ -78,13 +79,13 @@ func addSCTs(tmpl *x509.Certificate, logs []CTLog, ca, root *x509.Certificate, l
 		list = append(list, s...)
 	}
 	if len(list) == 0 {
-		return results, fmt.Errorf("no CT log returned an SCT: %s", strings.Join(failed, "; "))
+		return results, nil, fmt.Errorf("no CT log returned an SCT: %s", strings.Join(failed, "; "))
 	}
 
 	// Marshalling a byte slice as an OCTET STRING cannot fail.
 	value, _ := asn1.Marshal(append(binary.BigEndian.AppendUint16(nil, uint16(len(list))), list...))
 	tmpl.ExtraExtensions = append(tmpl.ExtraExtensions, pkix.Extension{Id: oidSCTList, Value: value})
-	return results, nil
+	return results, der, nil
 }
 
 // submitPrecert posts chain (precertificate first) to the log's
