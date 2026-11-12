@@ -36,6 +36,7 @@ func cli(args []string, stdout, stderr io.Writer) int {
 	keysDir := fs.String("keys", "keys", "directory with the CA certificates, for -update-revocation")
 	rootsDir := fs.String("roots", "roots", "directory with the root certificates that sign the CRLs")
 	revocationDir := fs.String("revocation-dir", "revocation", "directory of the revocation cache")
+	notBefore := fs.String("not-before", "", "backdate the leaf: Unix timestamp or UTC datetime (e.g. 2026-01-02T15:04:05Z); overrides leaf.not_before")
 	fs.Var(&sans, "san", "subject alternative name, repeatable or comma-separated (e.g. -san a.example,IP:192.0.2.1); replaces SANs from the config")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -51,6 +52,9 @@ func cli(args []string, stdout, stderr io.Writer) int {
 	cfg, err := loadConfig(*configPath)
 	if err == nil && len(sans) > 0 {
 		err = applySANs(&cfg.Leaf, sans)
+	}
+	if err == nil && *notBefore != "" {
+		cfg.Leaf.NotBefore = *notBefore
 	}
 	if err == nil {
 		err = run(cfg, runOptions{

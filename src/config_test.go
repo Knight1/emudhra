@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestApplySANs(t *testing.T) {
@@ -87,5 +88,33 @@ func TestLoadConfigErrors(t *testing.T) {
 	}
 	if _, err := loadConfig(path); err == nil || !strings.Contains(err.Error(), "parse") {
 		t.Errorf("expected parse error for unknown field, got %v", err)
+	}
+}
+
+func TestParseNotBefore(t *testing.T) {
+	now := time.Date(2026, 11, 12, 12, 0, 0, 0, time.UTC)
+	want := time.Date(2026, 1, 2, 15, 4, 5, 0, time.UTC)
+	for _, s := range []string{
+		"1767366245",
+		"2026-01-02T15:04:05Z",
+		"2026-01-02T16:04:05+01:00",
+		"2026-01-02T15:04:05",
+		"2026-01-02 15:04:05",
+	} {
+		got, err := parseNotBefore(s, now)
+		if err != nil || !got.Equal(want) || got.Location() != time.UTC {
+			t.Errorf("parseNotBefore(%q) = %v, %v; want %v", s, got, err, want)
+		}
+	}
+	if got, err := parseNotBefore("2026-01-02", now); err != nil || !got.Equal(time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)) {
+		t.Errorf("date only = %v, %v", got, err)
+	}
+	for s, wantErr := range map[string]string{
+		"yesterday":            "invalid not_before",
+		"2026-11-13T00:00:00Z": "in the future",
+	} {
+		if _, err := parseNotBefore(s, now); err == nil || !strings.Contains(err.Error(), wantErr) {
+			t.Errorf("parseNotBefore(%q) error = %v, want %q", s, err, wantErr)
+		}
 	}
 }

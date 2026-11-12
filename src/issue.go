@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	maxValidity      = 7 * 24 * time.Hour
+	maxValidity      = 398 * 24 * time.Hour
 	defaultMaxScalar = 1 << 16
 	policyDV         = "2.23.140.1.2.1"
 	policyOV         = "2.23.140.1.2.2"
@@ -131,6 +131,14 @@ func leafTemplate(lc *LeafConfig, ca *x509.Certificate, key crypto.Signer) (*x50
 		}
 	}
 	now := time.Now()
+	notBefore, notAfter := now.Add(-5*time.Minute), now.Add(validity)
+	if lc.NotBefore != "" {
+		t, err := parseNotBefore(lc.NotBefore, now)
+		if err != nil {
+			return nil, err
+		}
+		notBefore, notAfter = t, t.Add(validity)
+	}
 	tmpl := &x509.Certificate{
 		SerialNumber: serial,
 		Subject: pkix.Name{
@@ -143,8 +151,8 @@ func leafTemplate(lc *LeafConfig, ca *x509.Certificate, key crypto.Signer) (*x50
 			SerialNumber:       lc.SerialNumber,
 			ExtraNames:         evSubjectAttributes(lc),
 		},
-		NotBefore:             now.Add(-5 * time.Minute),
-		NotAfter:              now.Add(validity),
+		NotBefore:             notBefore,
+		NotAfter:              notAfter,
 		KeyUsage:              x509.KeyUsageDigitalSignature,
 		BasicConstraintsValid: true,
 		DNSNames:              lc.DNSNames,

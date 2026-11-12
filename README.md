@@ -83,11 +83,27 @@ cp config.example.json config.json   # set ca_cert to one of the CA PEMs
 | `-show`       | Print only the certificate PEM; no files, no checks             |
 | `-chain`      | Also print the complete chain (leaf, CA, root) as PEM           |
 | `-json`       | Print only the chain as a CT `add-chain` JSON request           |
+| `-not-before` | Backdate the leaf (Unix timestamp or UTC datetime); overrides `leaf.not_before` |
 | `-revocation` | Also check the issuing CA against the cached CRL and OneCRL     |
 | `-update-revocation` | Refresh the revocation cache, then exit                  |
 | `-keys`, `-roots`, `-revocation-dir` | Directories (default `keys`, `roots`, `revocation`) |
 
 SAN types are inferred or set with a prefix: `DNS:`, `IP:`, `email:`, `URI:`.
+
+## Backdating
+
+`leaf.not_before` (or `-not-before`) sets the leaf's notBefore to a past
+time; notAfter is then notBefore plus `validity_hours`. Accepted formats are a
+Unix timestamp in seconds (`1767366245`) or a datetime in UTC
+(`2026-01-02T15:04:05Z`, `2026-01-02T15:04:05`, `2026-01-02 15:04:05`,
+`2026-01-02`); an RFC 3339 offset such as `+01:00` is converted to UTC. Times
+in the future are rejected. If the backdated leaf has already expired, the
+chain is verified at its notBefore instead of now.
+
+```
+./emudhra-poc -show -not-before 2026-01-02T15:04:05Z
+./emudhra-poc -show -not-before 1767366245
+```
 
 ## Lint-clean leaves
 

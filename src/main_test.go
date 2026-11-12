@@ -37,6 +37,7 @@ func TestCLI(t *testing.T) {
 		{"bad san", []string{"-config", config, "-san", "bogus:x"}, 1, "", "unknown SAN type"},
 		{"missing config", []string{"-config", filepath.Join(dir, "missing.json")}, 1, "", "error:"},
 		{"run error", []string{"-config", config, "-san", "IP:nope"}, 1, "", "invalid ip address"},
+		{"not before", []string{"-config", config, "-show", "-not-before", "tomorrow"}, 1, "", "invalid not_before"},
 		{"unknown flag", []string{"-nope"}, 2, "", "flag provided but not defined"},
 		{"help", []string{"-h"}, 0, "", "Usage of emudhra-poc"},
 	}

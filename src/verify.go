@@ -44,7 +44,13 @@ func check(w io.Writer, res *issued) error {
 	if res.root != nil {
 		anchor = "root " + res.root.Subject.CommonName
 	}
-	report("chain verification against "+anchor, verifyChain(chain, time.Now()))
+	// A backdated leaf may have expired already; verify it at its notBefore.
+	at, when := time.Now(), ""
+	if at.After(res.leaf.NotAfter) {
+		at = res.leaf.NotBefore
+		when = " at " + at.UTC().Format(time.RFC3339)
+	}
+	report("chain verification against "+anchor+when, verifyChain(chain, at))
 	names := make([]string, len(chain))
 	for i, c := range chain {
 		names[i] = certName(c)
@@ -53,7 +59,7 @@ func check(w io.Writer, res *issued) error {
 
 	// Informational only: Go 1.26.10 / 1.27.3 and later refuse chains that
 	// contain the compromised eMudhra keys, regardless of the trust anchor.
-	if err := goVerify(chain); err != nil {
+	if err := goVerify(chain, at); err != nil {
 		fmt.Fprintf(w, "  [INFO] Go x509.Verify rejects the chain: %v\n", err)
 	} else {
 		fmt.Fprintln(w, "  [INFO] Go x509.Verify accepts the chain")
@@ -122,14 +128,14 @@ func allowsExtKeyUsages(ca *x509.Certificate, usages []x509.ExtKeyUsage) bool {
 
 // goVerify runs the standard library verifier on chain, with the last
 // certificate as the only trust anchor.
-func goVerify(chain []*x509.Certificate) error {
+func goVerify(chain []*x509.Certificate, at time.Time) error {
 	leaf := chain[0]
 	roots, inters := x509.NewCertPool(), x509.NewCertPool()
 	roots.AddCert(chain[len(chain)-1])
 	for _, c := range chain[1 : len(chain)-1] {
 		inters.AddCert(c)
 	}
-	opts := x509.VerifyOptions{Roots: roots, Intermediates: inters, KeyUsages: leaf.ExtKeyUsage}
+	opts := x509.VerifyOptions{Roots: roots, Intermediates: inters, KeyUsages: leaf.ExtKeyUsage, CurrentTime: at}
 	if len(leaf.DNSNames) > 0 {
 		opts.DNSName = leaf.DNSNames[0]
 	}

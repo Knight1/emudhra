@@ -7,7 +7,9 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 )
 
 type Config struct {
@@ -36,6 +38,7 @@ type LeafConfig struct {
 	JurisdictionCountry   string   `json:"jurisdiction_country,omitempty"`  // EV: two-letter country code
 	JurisdictionProvince  string   `json:"jurisdiction_province,omitempty"` // EV: optional
 	JurisdictionLocality  string   `json:"jurisdiction_locality,omitempty"` // EV: optional
+	NotBefore             string   `json:"not_before,omitempty"`            // backdate: Unix timestamp or UTC datetime
 	ValidityHours         int      `json:"validity_hours,omitempty"`
 	KeyType               string   `json:"key_type,omitempty"`      // ecdsa-p256 | ecdsa-p384 | rsa-2048 | rsa-3072
 	ExtKeyUsage           []string `json:"ext_key_usage,omitempty"` // serverAuth | clientAuth | codeSigning | emailProtection
@@ -124,4 +127,33 @@ func applySANs(lc *LeafConfig, sans []string) error {
 		}
 	}
 	return nil
+}
+
+// notBeforeLayouts are the accepted datetime formats for not_before. Values
+// without a zone are UTC.
+var notBeforeLayouts = []string{time.RFC3339, "2006-01-02T15:04:05", "2006-01-02 15:04:05", "2006-01-02"}
+
+// parseNotBefore parses a Unix timestamp in seconds or a datetime. The time
+// must not be in the future, since the option is for backdating.
+func parseNotBefore(s string, now time.Time) (time.Time, error) {
+	t, err := parseTime(s)
+	if err != nil {
+		return time.Time{}, err
+	}
+	if t.After(now) {
+		return time.Time{}, fmt.Errorf("not_before %s is in the future", t.Format(time.RFC3339))
+	}
+	return t, nil
+}
+
+func parseTime(s string) (time.Time, error) {
+	if sec, err := strconv.ParseInt(s, 10, 64); err == nil {
+		return time.Unix(sec, 0).UTC(), nil
+	}
+	for _, layout := range notBeforeLayouts {
+		if t, err := time.ParseInLocation(layout, s, time.UTC); err == nil {
+			return t.UTC(), nil
+		}
+	}
+	return time.Time{}, fmt.Errorf("invalid not_before %q (use a Unix timestamp or a UTC datetime such as 2026-01-02T15:04:05Z)", s)
 }

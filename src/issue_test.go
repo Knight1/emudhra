@@ -60,6 +60,7 @@ func TestIssueErrors(t *testing.T) {
 		{"cn and omit", func(t *testing.T, dir string, cfg *Config) {
 			cfg.Leaf.CommonName, cfg.Leaf.OmitCommonName = "poc.example", true
 		}, "must be empty"},
+		{"not before", func(t *testing.T, dir string, cfg *Config) { cfg.Leaf.NotBefore = "yesterday" }, "invalid not_before"},
 		{"missing ca", func(t *testing.T, dir string, cfg *Config) { cfg.CACert = filepath.Join(dir, "missing.pem") }, "ca_cert:"},
 		{"rsa ca", func(t *testing.T, dir string, cfg *Config) { cfg.CACert = writeRSACA(t, dir) }, "expected ECDSA public key"},
 		{"missing ca key", func(t *testing.T, dir string, cfg *Config) { cfg.CAKey = filepath.Join(dir, "missing.key") }, "ca_key:"},
@@ -240,6 +241,29 @@ func TestLeafOmitCommonName(t *testing.T) {
 	}
 	if len(leaf.Subject.Names) != 0 {
 		t.Errorf("subject = %s, want empty", leaf.Subject)
+	}
+}
+
+func TestLeafBackdated(t *testing.T) {
+	notBefore := time.Now().Add(-30 * 24 * time.Hour).Truncate(time.Second).UTC()
+	dir := t.TempDir()
+	ca := writeCA(t, dir, testScalar, func(c *x509.Certificate) { c.NotBefore = notBefore.Add(-time.Hour) })
+	cfg := testConfig(dir, ca)
+	cfg.Leaf.NotBefore = notBefore.Format(time.RFC3339)
+
+	var out bytes.Buffer
+	if err := run(cfg, runOptions{}, &out); err != nil {
+		t.Fatalf("run: %v\n%s", err, out.String())
+	}
+	if want := "[ OK ] chain verification against CA certificate (intermediate used as trust anchor, offline) at " + cfg.Leaf.NotBefore; !strings.Contains(out.String(), want) {
+		t.Errorf("output missing %q:\n%s", want, out.String())
+	}
+	leaf, err := readCert(cfg.Output.Cert)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !leaf.NotBefore.Equal(notBefore) || !leaf.NotAfter.Equal(notBefore.Add(24*time.Hour)) {
+		t.Errorf("validity = %s - %s, want from %s", leaf.NotBefore, leaf.NotAfter, notBefore)
 	}
 }
 
