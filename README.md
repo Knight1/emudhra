@@ -103,6 +103,17 @@ to each log's `/ct/v1/add-pre-chain` together with the CA and, if configured,
 is then signed again. Logs that reject the precertificate are reported and
 skipped; at least one SCT is required.
 
+The final certificate (with the embedded SCTs) is then submitted to every
+log's `/ct/v1/add-chain` as well, also with `-show`. A log that rejects it is
+only reported, since the certificate already carries the precertificate SCTs.
+
+Every returned SCT is saved (TLS-encoded, RFC 6962 3.2, as used by
+`ssl_ct_static_scts`-style servers) to `output.dir`, or to the directory of
+`output.cert` without it. `<log>` is the first 8 bytes of the log ID in hex:
+
+- `<serial>.<log>.pre.sct`: SCT for the precertificate (embedded)
+- `<serial>.<log>.sct`: SCT for the final certificate
+
 ```json
 "ct_logs": [
   {"url": "https://ct.example/2026h2/", "key": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE..."}
@@ -111,7 +122,8 @@ skipped; at least one SCT is required.
 
 `key` is optional: the log's public key as base64 DER, as in the Chrome and
 Apple log lists. With a key, the checks verify the log ID and the SCT
-signature against the final certificate. Chrome and Apple require at least
+signature against the final certificate, for both the embedded SCTs and the
+SCTs returned for the final certificate. Chrome and Apple require at least
 two SCTs from distinct log operators; with fewer, the checks print a note.
 
 ```
@@ -123,7 +135,8 @@ two SCTs from distinct log operators; with fewer, the checks print a note.
 `output.dir` (or `-out-dir`) additionally stores every issued leaf under its
 serial number (lowercase hex, as printed in the leaf details):
 `<serial>.crt` (certificate), `<serial>.key` (private key) and, with CT logs,
-`<serial>.crt_pre` (the precertificate), all PEM. With `output.dir` set,
+`<serial>.crt_pre` (the precertificate), all PEM, plus the SCT files
+described above. With `output.dir` set,
 `output.cert` and `output.key` are optional.
 
 ```

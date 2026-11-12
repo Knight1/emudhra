@@ -28,14 +28,16 @@ import (
 )
 
 // fakeLog is an httptest CT log. Under /ok it signs every precertificate
-// with key; /reject, /badjson and /badversion fail in different ways.
+// and certificate with key; /reject, /badjson and /badversion fail in
+// different ways.
 type fakeLog struct {
 	server *httptest.Server
 	key    *ecdsa.PrivateKey
 	keyB64 string
 
 	mu     sync.Mutex
-	chains [][][]byte // submitted chains
+	chains [][][]byte // submitted precertificate chains
+	certs  [][][]byte // submitted certificate chains
 }
 
 func newFakeLog(t *testing.T) *fakeLog {
@@ -77,8 +79,28 @@ func newFakeLog(t *testing.T) *fakeLog {
 			return
 		}
 		sct := &sctResponse{ID: logID[:], Timestamp: uint64(time.Now().UnixMilli())}
-		sct.Signature = signDS(t, key, sctSignedData(sct, issuer.RawSubjectPublicKeyInfo, tbs))
+		sct.Signature = signDS(t, key, sctSignedData(sct, precertEntry(issuer.RawSubjectPublicKeyInfo, tbs)))
 		json.NewEncoder(w).Encode(sct)
+	})
+	mux.HandleFunc("POST /ok/ct/v1/add-chain", func(w http.ResponseWriter, r *http.Request) {
+		var req addChainRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		f.mu.Lock()
+		f.certs = append(f.certs, req.Chain)
+		f.mu.Unlock()
+		sct := &sctResponse{ID: logID[:], Timestamp: uint64(time.Now().UnixMilli())}
+		sct.Signature = signDS(t, key, sctSignedData(sct, x509Entry(req.Chain[0])))
+		json.NewEncoder(w).Encode(sct)
+	})
+	mux.HandleFunc("POST /precertonly/ct/v1/add-pre-chain", func(w http.ResponseWriter, r *http.Request) {
+		r.URL.Path = "/ok/ct/v1/add-pre-chain"
+		mux.ServeHTTP(w, r)
+	})
+	mux.HandleFunc("POST /precertonly/ct/v1/add-chain", func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "final certificates not accepted", http.StatusBadRequest)
 	})
 	mux.HandleFunc("POST /reject/ct/v1/add-pre-chain", func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unknown root", http.StatusBadRequest)
@@ -154,6 +176,9 @@ func TestCTEmbedsSCTs(t *testing.T) {
 		"[ OK ] SCT from " + f.url("/ok/") + " verifies against the leaf",
 		"[INFO] SCT from " + f.url("/ok") + " embedded (no log key configured",
 		"[INFO] " + f.url("/reject") + " rejected the precertificate: 400 Bad Request: unknown root",
+		"[ OK ] SCT from " + f.url("/ok/") + " for the final certificate verifies",
+		"[INFO] final certificate logged by " + f.url("/ok") + " (no log key configured",
+		"[INFO] " + f.url("/reject") + " rejected the final certificate: 404 Not Found",
 	} {
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("output missing %q:\n%s", want, out.String())
@@ -181,6 +206,57 @@ func TestCTEmbedsSCTs(t *testing.T) {
 		if pre.SerialNumber.Cmp(leaf.SerialNumber) != 0 {
 			t.Error("precertificate serial differs from the final certificate")
 		}
+	}
+	if len(f.certs) != 2 {
+		t.Fatalf("submitted final certificates = %d, want 2", len(f.certs))
+	}
+	for _, chain := range f.certs {
+		if len(chain) != 2 || !bytes.Equal(chain[0], leaf.Raw) {
+			t.Error("add-chain did not receive the final certificate chain")
+		}
+	}
+
+	// Both /ok logs share one key, so one file per SCT kind.
+	logID := sha256.Sum256(mustB64(t, f.keyB64))
+	base := filepath.Join(filepath.Dir(cfg.Output.Cert), hex.EncodeToString(leaf.SerialNumber.Bytes())+"."+hex.EncodeToString(logID[:8]))
+	for _, name := range []string{base + ".pre.sct", base + ".sct"} {
+		data, err := os.ReadFile(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if data[0] != 0 || !bytes.Equal(data[1:33], logID[:]) {
+			t.Errorf("%s is not a v1 SCT of the log", name)
+		}
+		if !strings.Contains(out.String(), name) {
+			t.Errorf("output missing %s:\n%s", name, out.String())
+		}
+	}
+}
+
+func mustB64(t *testing.T, s string) []byte {
+	t.Helper()
+	b, err := base64.StdEncoding.DecodeString(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
+
+func TestCTFinalCertRejected(t *testing.T) {
+	f := newFakeLog(t)
+	dir := t.TempDir()
+	cfg := testConfig(dir, writeWeakCA(t, dir, testScalar))
+	cfg.CTLogs = []CTLog{{URL: f.url("/precertonly"), Key: f.keyB64}}
+
+	var out bytes.Buffer
+	if err := run(cfg, runOptions{}, &out); err != nil {
+		t.Fatalf("run: %v\n%s", err, out.String())
+	}
+	if !strings.Contains(out.String(), "rejected the final certificate: 400 Bad Request: final certificates not accepted") {
+		t.Errorf("rejection not reported:\n%s", out.String())
+	}
+	if strings.Contains(out.String(), "sct:      ") || !strings.Contains(out.String(), "pre sct:") {
+		t.Errorf("expected only the precertificate SCT file:\n%s", out.String())
 	}
 }
 
@@ -278,6 +354,18 @@ func TestVerifySCTErrors(t *testing.T) {
 		if err := verifySCT(tc.sct, tc.key, tc.leaf, res.ca); err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Errorf("%s: error = %v, want %q", tc.name, err, tc.want)
 		}
+	}
+
+	certSCT := res.certSCTs[0].sct
+	if err := verifyCertSCT(certSCT, f.keyB64, res.leaf); err != nil {
+		t.Fatalf("valid certificate SCT: %v", err)
+	}
+	if err := verifyCertSCT(certSCT, "!", res.leaf); err == nil || !strings.Contains(err.Error(), "log key") {
+		t.Errorf("bad key: error = %v", err)
+	}
+	// The precertificate SCT does not cover the final certificate entry.
+	if err := verifyCertSCT(sct, f.keyB64, res.leaf); err == nil || !strings.Contains(err.Error(), "invalid SCT signature") {
+		t.Errorf("precertificate SCT: error = %v", err)
 	}
 }
 
@@ -389,5 +477,11 @@ func TestCTOutputDirFlag(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "precert:  "+base+".crt_pre") {
 		t.Errorf("output missing precert:\n%s", stdout.String())
+	}
+	logID := sha256.Sum256(mustB64(t, f.keyB64))
+	for _, name := range []string{".pre.sct", ".sct"} {
+		if _, err := os.Stat(base + "." + hex.EncodeToString(logID[:8]) + name); err != nil {
+			t.Error(err)
+		}
 	}
 }

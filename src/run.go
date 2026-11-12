@@ -122,7 +122,9 @@ func printOutputs(w io.Writer, files []outFile) {
 
 // writeOutputs writes the configured files and returns them in order.
 // output.dir receives <serial>.crt, <serial>.key and, with CT logs,
-// <serial>.crt_pre (the precertificate).
+// <serial>.crt_pre (the precertificate). Every SCT returned by a log is
+// written as <serial>.<log>.pre.sct (precertificate) or <serial>.<log>.sct
+// (final certificate) to output.dir, or next to output.cert without it.
 func writeOutputs(cfg *Config, res *issued, leafPEM []byte) ([]outFile, error) {
 	out := cfg.Output
 	if (out.Cert == "" || out.Key == "") && out.Dir == "" {
@@ -144,12 +146,26 @@ func writeOutputs(cfg *Config, res *issued, leafPEM []byte) ([]outFile, error) {
 	add("key", out.Key, keyPEM, 0o600)
 	add("chain", out.Chain, append(append([]byte{}, leafPEM...),
 		pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: res.ca.Raw})...), 0o644)
+	serial := hex.EncodeToString(res.leaf.SerialNumber.Bytes())
+	sctDir := filepath.Dir(out.Cert)
 	if out.Dir != "" {
-		base := filepath.Join(out.Dir, hex.EncodeToString(res.leaf.SerialNumber.Bytes()))
+		sctDir = out.Dir
+		base := filepath.Join(out.Dir, serial)
 		add("cert", base+".crt", leafPEM, 0o644)
 		add("key", base+".key", keyPEM, 0o600)
 		if res.precert != nil {
 			add("precert", base+".crt_pre", pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: res.precert}), 0o644)
+		}
+	}
+	base := filepath.Join(sctDir, serial)
+	for _, r := range res.scts {
+		if r.sct != nil {
+			add("pre sct", base+"."+sctFileName(r.sct)+".pre.sct", serializeSCT(r.sct), 0o644)
+		}
+	}
+	for _, r := range res.certSCTs {
+		if r.sct != nil {
+			add("sct", base+"."+sctFileName(r.sct)+".sct", serializeSCT(r.sct), 0o644)
 		}
 	}
 

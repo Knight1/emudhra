@@ -12,6 +12,7 @@ import (
 	"encoding/asn1"
 	"encoding/base64"
 	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -23,14 +24,15 @@ import (
 
 // Certificate Transparency (RFC 6962): the leaf is first issued as a
 // precertificate, which is submitted to every configured log; the returned
-// SCTs are embedded in the final certificate.
+// SCTs are embedded in the final certificate, which is then submitted to the
+// logs as well.
 
 var (
 	oidCTPoison = asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 11129, 2, 4, 3}
 	oidSCTList  = asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 11129, 2, 4, 2}
 )
 
-// sctResponse is the body of an add-pre-chain response. []byte fields are
+// sctResponse is the body of an add-chain or add-pre-chain response. []byte fields are
 // base64 in JSON; Signature is the TLS-encoded DigitallySigned struct.
 type sctResponse struct {
 	SCTVersion uint8  `json:"sct_version"`
@@ -40,7 +42,7 @@ type sctResponse struct {
 	Signature  []byte `json:"signature"`
 }
 
-// sctResult is the outcome of submitting the precertificate to one log.
+// sctResult is the outcome of submitting a certificate to one log.
 type sctResult struct {
 	log CTLog
 	sct *sctResponse
@@ -68,7 +70,7 @@ func addSCTs(tmpl *x509.Certificate, logs []CTLog, ca, root *x509.Certificate, l
 	var list []byte
 	var failed []string
 	for _, l := range logs {
-		sct, err := submitPrecert(httpClient, l.URL, chain)
+		sct, err := submitChain(httpClient, l.URL, "add-pre-chain", chain)
 		results = append(results, sctResult{log: l, sct: sct, err: err})
 		if err != nil {
 			failed = append(failed, fmt.Sprintf("%s: %v", l.URL, err))
@@ -88,12 +90,28 @@ func addSCTs(tmpl *x509.Certificate, logs []CTLog, ca, root *x509.Certificate, l
 	return results, der, nil
 }
 
-// submitPrecert posts chain (precertificate first) to the log's
-// add-pre-chain endpoint and returns the SCT.
-func submitPrecert(client *http.Client, logURL string, chain [][]byte) (*sctResponse, error) {
+// submitCert submits the final certificate chain of res to every log. A log
+// that rejects it is only recorded: the certificate already carries the
+// precertificate SCTs.
+func submitCert(res *issued, logs []CTLog) []sctResult {
+	var chain [][]byte
+	for _, c := range chainCerts(res) {
+		chain = append(chain, c.Raw)
+	}
+	var results []sctResult
+	for _, l := range logs {
+		sct, err := submitChain(httpClient, l.URL, "add-chain", chain)
+		results = append(results, sctResult{log: l, sct: sct, err: err})
+	}
+	return results
+}
+
+// submitChain posts chain (leaf or precertificate first) to the log's
+// endpoint (add-chain or add-pre-chain) and returns the SCT.
+func submitChain(client *http.Client, logURL, endpoint string, chain [][]byte) (*sctResponse, error) {
 	// Marshalling [][]byte cannot fail.
 	body, _ := json.Marshal(addChainRequest{Chain: chain})
-	resp, err := client.Post(strings.TrimSuffix(logURL, "/")+"/ct/v1/add-pre-chain", "application/json", bytes.NewReader(body))
+	resp, err := client.Post(strings.TrimSuffix(logURL, "/")+"/ct/v1/"+endpoint, "application/json", bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
@@ -121,39 +139,73 @@ func serializeSCT(s *sctResponse) []byte {
 	return append(b, s.Signature...)
 }
 
-// sctSignedData returns the data a log signs for a precertificate entry:
-// tbs is the TBSCertificate without the poison and SCT list extensions.
-func sctSignedData(s *sctResponse, issuerSPKI, tbs []byte) []byte {
+// precertEntry returns the signed entry of a precertificate: tbs is the
+// TBSCertificate without the poison and SCT list extensions.
+func precertEntry(issuerSPKI, tbs []byte) []byte {
 	issuerKeyHash := sha256.Sum256(issuerSPKI)
+	b := binary.BigEndian.AppendUint16(nil, 1) // entry_type precert_entry
+	b = append(b, issuerKeyHash[:]...)
+	return appendUint24Bytes(b, tbs)
+}
+
+// x509Entry returns the signed entry of a certificate (its DER).
+func x509Entry(der []byte) []byte {
+	b := binary.BigEndian.AppendUint16(nil, 0) // entry_type x509_entry
+	return appendUint24Bytes(b, der)
+}
+
+func appendUint24Bytes(b, data []byte) []byte {
+	b = append(b, byte(len(data)>>16), byte(len(data)>>8), byte(len(data)))
+	return append(b, data...)
+}
+
+// sctSignedData returns the data a log signs for entry (RFC 6962, 3.2).
+func sctSignedData(s *sctResponse, entry []byte) []byte {
 	b := []byte{s.SCTVersion, 0} // signature_type certificate_timestamp
 	b = binary.BigEndian.AppendUint64(b, s.Timestamp)
-	b = binary.BigEndian.AppendUint16(b, 1) // entry_type precert_entry
-	b = append(b, issuerKeyHash[:]...)
-	b = append(b, byte(len(tbs)>>16), byte(len(tbs)>>8), byte(len(tbs)))
-	b = append(b, tbs...)
+	b = append(b, entry...)
 	b = binary.BigEndian.AppendUint16(b, uint16(len(s.Extensions)))
 	return append(b, s.Extensions...)
 }
 
-// verifySCT checks an embedded SCT against the final certificate leaf, using
-// the log's base64 DER public key.
-func verifySCT(s *sctResponse, key string, leaf, ca *x509.Certificate) error {
+// logKey parses the log's base64 DER public key and checks that it matches
+// the log ID of s.
+func logKey(s *sctResponse, key string) (crypto.PublicKey, error) {
 	der, err := base64.StdEncoding.DecodeString(key)
 	if err != nil {
-		return fmt.Errorf("log key: %w", err)
+		return nil, fmt.Errorf("log key: %w", err)
 	}
 	if id := sha256.Sum256(der); !bytes.Equal(id[:], s.ID) {
-		return errors.New("log ID does not match the log key")
+		return nil, errors.New("log ID does not match the log key")
 	}
 	pub, err := x509.ParsePKIXPublicKey(der)
 	if err != nil {
-		return fmt.Errorf("log key: %w", err)
+		return nil, fmt.Errorf("log key: %w", err)
+	}
+	return pub, nil
+}
+
+// verifySCT checks an embedded (precertificate) SCT against the final
+// certificate leaf, using the log's base64 DER public key.
+func verifySCT(s *sctResponse, key string, leaf, ca *x509.Certificate) error {
+	pub, err := logKey(s, key)
+	if err != nil {
+		return err
 	}
 	tbs, err := removeExtension(leaf.RawTBSCertificate, oidSCTList)
 	if err != nil {
 		return fmt.Errorf("leaf TBSCertificate: %w", err)
 	}
-	return verifyDigitallySigned(pub, sctSignedData(s, ca.RawSubjectPublicKeyInfo, tbs), s.Signature)
+	return verifyDigitallySigned(pub, sctSignedData(s, precertEntry(ca.RawSubjectPublicKeyInfo, tbs)), s.Signature)
+}
+
+// verifyCertSCT checks an SCT returned for the final certificate leaf.
+func verifyCertSCT(s *sctResponse, key string, leaf *x509.Certificate) error {
+	pub, err := logKey(s, key)
+	if err != nil {
+		return err
+	}
+	return verifyDigitallySigned(pub, sctSignedData(s, x509Entry(leaf.Raw)), s.Signature)
 }
 
 // verifyDigitallySigned checks a TLS DigitallySigned struct with SHA-256.
@@ -247,4 +299,20 @@ func reportSCTs(w io.Writer, res *issued, report func(string, error)) {
 	if n < 2 {
 		fmt.Fprintf(w, "  [INFO] %d SCT embedded; Chrome and Apple require at least 2 from distinct log operators\n", n)
 	}
+	for _, r := range res.certSCTs {
+		switch {
+		case r.err != nil:
+			fmt.Fprintf(w, "  [INFO] %s rejected the final certificate: %v\n", r.log.URL, r.err)
+		case r.log.Key == "":
+			fmt.Fprintf(w, "  [INFO] final certificate logged by %s (no log key configured, signature not checked)\n", r.log.URL)
+		default:
+			report("SCT from "+r.log.URL+" for the final certificate verifies", verifyCertSCT(r.sct, r.log.Key, res.leaf))
+		}
+	}
+}
+
+// sctFileName returns the file name suffix for an SCT of the log with the
+// given ID: the first 8 bytes of the log ID in hex.
+func sctFileName(s *sctResponse) string {
+	return hex.EncodeToString(s.ID[:8])
 }

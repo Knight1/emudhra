@@ -35,6 +35,8 @@ type issued struct {
 	leafKey crypto.Signer
 	scts    []sctResult // empty without ct_logs
 	precert []byte      // DER; nil without ct_logs
+
+	certSCTs []sctResult // add-chain results for the final certificate
 }
 
 func issue(cfg *Config) (*issued, error) {
@@ -71,6 +73,9 @@ func issue(cfg *Config) (*issued, error) {
 	}
 	// The DER comes straight from CreateCertificate, so parsing cannot fail.
 	res.leaf, _ = x509.ParseCertificate(der)
+	if len(cfg.CTLogs) > 0 {
+		res.certSCTs = submitCert(res, cfg.CTLogs)
+	}
 	return res, nil
 }
 
