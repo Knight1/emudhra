@@ -33,6 +33,7 @@ type issued struct {
 	scalar  uint64 // 0 if the CA key was loaded from a file
 	leaf    *x509.Certificate
 	leafKey crypto.Signer
+	scts    []sctResult // empty without ct_logs
 }
 
 func issue(cfg *Config) (*issued, error) {
@@ -79,6 +80,12 @@ func issue(cfg *Config) (*issued, error) {
 	tmpl, err := leafTemplate(&cfg.Leaf, ca, res.leafKey)
 	if err != nil {
 		return nil, err
+	}
+
+	if len(cfg.CTLogs) > 0 {
+		if res.scts, err = addSCTs(tmpl, cfg.CTLogs, ca, res.root, res.leafKey.Public(), caKey); err != nil {
+			return nil, err
+		}
 	}
 
 	der, err := x509.CreateCertificate(rand.Reader, tmpl, ca, res.leafKey.Public(), caKey)

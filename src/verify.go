@@ -65,6 +65,8 @@ func check(w io.Writer, res *issued) error {
 		fmt.Fprintln(w, "  [INFO] Go x509.Verify accepts the chain")
 	}
 
+	reportSCTs(w, res, report)
+
 	if len(failed) > 0 {
 		return fmt.Errorf("checks failed: %s", strings.Join(failed, "; "))
 	}

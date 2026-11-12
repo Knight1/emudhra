@@ -24,7 +24,7 @@ func main() {
 
 // cli parses args, runs the tool and returns the process exit code.
 func cli(args []string, stdout, stderr io.Writer) int {
-	var sans sanFlag
+	var sans, ctLogs listFlag
 	fs := flag.NewFlagSet("emudhra-poc", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	configPath := fs.String("config", "config.json", "path to JSON config")
@@ -37,6 +37,7 @@ func cli(args []string, stdout, stderr io.Writer) int {
 	rootsDir := fs.String("roots", "roots", "directory with the root certificates that sign the CRLs")
 	revocationDir := fs.String("revocation-dir", "revocation", "directory of the revocation cache")
 	notBefore := fs.String("not-before", "", "backdate the leaf: Unix timestamp or UTC datetime (e.g. 2026-01-02T15:04:05Z); overrides leaf.not_before")
+	fs.Var(&ctLogs, "ct-log", "CT log URL, repeatable or comma-separated; submits a precertificate and embeds the SCTs; replaces ct_logs from the config")
 	fs.Var(&sans, "san", "subject alternative name, repeatable or comma-separated (e.g. -san a.example,IP:192.0.2.1); replaces SANs from the config")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -52,6 +53,12 @@ func cli(args []string, stdout, stderr io.Writer) int {
 	cfg, err := loadConfig(*configPath)
 	if err == nil && len(sans) > 0 {
 		err = applySANs(&cfg.Leaf, sans)
+	}
+	if err == nil && len(ctLogs) > 0 {
+		cfg.CTLogs = nil
+		for _, u := range ctLogs {
+			cfg.CTLogs = append(cfg.CTLogs, CTLog{URL: u})
+		}
 	}
 	if err == nil && *notBefore != "" {
 		cfg.Leaf.NotBefore = *notBefore

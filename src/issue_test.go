@@ -26,7 +26,7 @@ func TestRecoveryBound(t *testing.T) {
 func TestValidityCap(t *testing.T) {
 	dir := t.TempDir()
 	cfg := testConfig(dir, writeWeakCA(t, dir, testScalar))
-	cfg.Leaf.ValidityHours = 24 * 30
+	cfg.Leaf.ValidityHours = int(maxValidity.Hours()) + 1
 	if err := run(cfg, runOptions{show: true}, &bytes.Buffer{}); err == nil {
 		t.Fatal("expected validity cap error")
 	}

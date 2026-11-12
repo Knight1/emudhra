@@ -31,7 +31,7 @@ func TestApplySANs(t *testing.T) {
 }
 
 func TestSANFlagSplitsCommas(t *testing.T) {
-	var s sanFlag
+	var s listFlag
 	s.Set("a.example, IP:192.0.2.1")
 	s.Set("b.example")
 	if got := s.String(); got != "a.example,IP:192.0.2.1,b.example" {

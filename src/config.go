@@ -17,6 +17,7 @@ type Config struct {
 	CAKey     string       `json:"ca_key,omitempty"`     // optional; recovered from ca_cert if empty
 	RootCert  string       `json:"root_cert,omitempty"`  // optional trust anchor for chain verification
 	MaxScalar uint64       `json:"max_scalar,omitempty"` // brute-force bound for key recovery
+	CTLogs    []CTLog      `json:"ct_logs,omitempty"`    // submit a precertificate and embed the SCTs
 	Leaf      LeafConfig   `json:"leaf"`
 	Output    OutputConfig `json:"output"`
 }
@@ -48,20 +49,27 @@ type LeafConfig struct {
 	IssuingCertificateURL []string `json:"issuing_certificate_url,omitempty"`
 }
 
+// CTLog is a Certificate Transparency log. Key is optional: the log's
+// public key as base64 DER (as in the browser log lists), used to verify
+// its SCT.
+type CTLog struct {
+	URL string `json:"url"`
+	Key string `json:"key,omitempty"`
+}
+
 type OutputConfig struct {
 	Cert  string `json:"cert"`
 	Key   string `json:"key"`
 	Chain string `json:"chain,omitempty"`
 }
 
-// sanFlag collects -san values. Each value may be comma-separated and
-// optionally prefixed with DNS:, IP:, email: or URI:; otherwise the type is
-// inferred.
-type sanFlag []string
+// listFlag collects repeatable, comma-separated flag values such as -san
+// and -ct-log.
+type listFlag []string
 
-func (s *sanFlag) String() string { return strings.Join(*s, ",") }
+func (s *listFlag) String() string { return strings.Join(*s, ",") }
 
-func (s *sanFlag) Set(v string) error {
+func (s *listFlag) Set(v string) error {
 	for _, part := range strings.Split(v, ",") {
 		if part = strings.TrimSpace(part); part != "" {
 			*s = append(*s, part)

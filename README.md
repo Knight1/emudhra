@@ -7,7 +7,7 @@ public CA certificates and used to sign arbitrary leaf certificates.
 All affected intermediates are revoked (caCompromise).
 
 The tool recovers the CA key from the CA certificate, issues a leaf
-certificate (max. 7 days validity) and verifies the result.
+certificate (max. 398 days validity) and verifies the result.
 
 ```
 $ ./emudhra-poc
@@ -83,12 +83,37 @@ cp config.example.json config.json   # set ca_cert to one of the CA PEMs
 | `-show`       | Print only the certificate PEM; no files, no checks             |
 | `-chain`      | Also print the complete chain (leaf, CA, root) as PEM           |
 | `-json`       | Print only the chain as a CT `add-chain` JSON request           |
+| `-ct-log`     | CT log URL, repeatable or comma-separated; embeds SCTs; replaces `ct_logs` |
 | `-not-before` | Backdate the leaf (Unix timestamp or UTC datetime); overrides `leaf.not_before` |
 | `-revocation` | Also check the issuing CA against the cached CRL and OneCRL     |
 | `-update-revocation` | Refresh the revocation cache, then exit                  |
 | `-keys`, `-roots`, `-revocation-dir` | Directories (default `keys`, `roots`, `revocation`) |
 
 SAN types are inferred or set with a prefix: `DNS:`, `IP:`, `email:`, `URI:`.
+
+## Certificate Transparency
+
+With `ct_logs` (or `-ct-log`), the leaf is first issued as a precertificate
+(same serial and contents plus the critical poison extension), which is sent
+to each log's `/ct/v1/add-pre-chain` together with the CA and, if configured,
+`root_cert`. The returned SCTs are embedded in the final certificate, which
+is then signed again. Logs that reject the precertificate are reported and
+skipped; at least one SCT is required.
+
+```json
+"ct_logs": [
+  {"url": "https://ct.example/2026h2/", "key": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE..."}
+]
+```
+
+`key` is optional: the log's public key as base64 DER, as in the Chrome and
+Apple log lists. With a key, the checks verify the log ID and the SCT
+signature against the final certificate. Chrome and Apple require at least
+two SCTs from distinct log operators; with fewer, the checks print a note.
+
+```
+./emudhra-poc -ct-log https://ct.example/2026h2/
+```
 
 ## Backdating
 
